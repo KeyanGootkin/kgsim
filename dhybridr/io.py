@@ -6,7 +6,7 @@ from pysim.parsing import File
 from pysim.environment import dHybridRtemplate
 #nonpysim imports
 import numpy as np
-from datetime import datetime
+from datetime import datetime, date
 
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
 # >-|===|>                            Functions                            <|===|-<
@@ -187,12 +187,14 @@ class dHybridRinput(File):
         "! -------------------------------------------------------------------------------"
     ])
     def __init__(self, path: str) -> None:
-        #init file properties
-        File.__init__(self, path, master=dHybridRtemplate.path+"/input/input", executable=False)
-        #if doesn't exist, make a copy from master
-        # if not self.exists: self.update()
-        #read in the current file
-        with open(self.path, 'r') as file: self.lines = file.read().split("\n")
+        if type(path)==list and type(path[0]==str): self.lines = path
+        else:
+            #init file properties
+            File.__init__(self, path, master=dHybridRtemplate.path+"/input/input", executable=False)
+            #if doesn't exist, make a copy from master
+            # if not self.exists: self.update()
+            #read in the current file
+            with open(self.path, 'r') as file: self.lines = file.read().split("\n")
         #get rid of empty lines
         self.lines = [l for l in self.lines if len(l.strip())>0]
         #read the remainder to set input file properties
@@ -274,22 +276,30 @@ class dHybridRinput(File):
 class dHybridRout(File):
     def __init__(self, path: str) -> None:
         super().__init__(path)
-        if self.exists: self.read()
-        # if self.end and self.start:
-        #     self.dt: datetime = (self.end - self.start)
-        #     self.runtime: float = self.dt.seconds / 60. / 60.
+        if self.exists: 
+            self.read()
+            self.dt: datetime = (self.end - self.start)
+            self.runtime: float = self.dt.seconds / 60. / 60.
 
     def read(self):
-        with open(self.path, 'r') as file:
-            self.lines: list[str] = file.readlines()
-            for i,li in enumerate(self.lines):
-                line: list[str] = li.strip().split()
-                match line:
-                    case ['Run', 'started', *_]:
-                        [_, _, day, _, month, _, year, _, hour, _] = line
-                        [minute, _, second, _, milisecond] = self.lines[i+1].strip().split()
-                        self.start: datetime = datetime(int(year), int(month), int(day), int(hour), int(minute), int(second))
-                    case ['Run', 'terminated', 'successfully', *_]: 
-                        [_, _, _, day, _, month, _, year, _] = line
-                        [hour, _, minute, _, second, _, milisecond] = self.lines[i+1].strip().split()
-                        self.end: datetime = datetime(int(year), int(month), int(day), int(hour), int(minute), int(second))
+        self.start = datetime.now()
+        self.end = datetime.now()
+        for i,li in enumerate(self.lines):
+            line: list[str] = li.strip().split()
+            match line:
+                case ['Run', 'started', *_]:
+                    [_, _, start_day, _, month, _, year, _, hour, _] = line
+                    current_day = int(start_day)
+                    [minute, _, second, _, milisecond] = self.lines[i+1].strip().split()
+                    self.start = datetime(int(year), int(month), int(start_day), int(hour), int(minute), int(second))
+                    current = self.start
+                case ['ITER', *_]:
+                    previous = current 
+                    [*_, hour, _, minute, _, second, _, milisecond] = line
+                    if int(hour)<previous.hour: current_day += 1
+                    current = datetime(int(year), int(month), current_day, int(hour), int(minute), int(second))
+                    self.end = current
+                case ['Run', 'terminated', 'successfully', *_]: 
+                    [_, _, _, day, _, month, _, year, _] = line
+                    [hour, _, minute, _, second, _, milisecond] = self.lines[i+1].strip().split()
+                    self.end = datetime(int(year), int(month), int(day), int(hour), int(minute), int(second))

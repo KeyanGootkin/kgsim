@@ -7,6 +7,8 @@ from pysim.parsing import Folder
 from pysim.environment import dHybridRtemplate
 from pysim.fields import ScalarField, VectorField
 from pysim.simulation import GenericSimulation
+from pysim.particles import Species, Particle
+from pysim.plotting import show
 from pysim.dhybridr.io import dHybridRinput, dHybridRout
 from pysim.dhybridr.initializer import dHybridRinitializer, TurbInit, dHybridRconfig
 from pysim.dhybridr.anvil_submit import AnvilSubmitScript
@@ -14,6 +16,12 @@ from pysim.dhybridr.anvil_submit import AnvilSubmitScript
 import numpy as np 
 from h5py import File as h5File
 from os import system
+from glob import glob
+
+# !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
+# >-|===|>                           Definitions                           <|===|-<
+# !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
+track_keys = ['B1', 'B2', 'B3', 'E1', 'E2', 'E3', 'ene', 'n', 'p1', 'p2', 'p3', 'q', 't', 'x1', 'x2', 'x3']
 
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
 # >-|===|>                            Functions                            <|===|-<
@@ -31,6 +39,48 @@ def extract_energy(file_name: str) -> tuple:
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
 # >-|===|>                             Classes                             <|===|-<
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
+class dHybridRparticle(Particle):
+    def __init__(self, tag: str, species: Species, load: bool = False):
+        self.tag = tag
+        self.species = self.sp = species
+        if load: self.load()
+    def load(self):
+        with h5File(self.species.path) as file:
+            for k in track_keys:
+                try: setattr(self, k, file[self.tag][k][:])
+                except: continue
+            self.x = self.x1 
+            self.y = self.x2
+    def follow_video(self, background=None, window=100, **kwds):
+        sim = self.species.parent
+        if not background: background = sim.density
+        di = sim.input.sp01.track_nstore
+        db = sim.input.ndump
+        center = (window//2, window//2)
+        fig,ax,img = show(background[0], **kwds)
+        line, = ax.plot(*center, ls='None', marker='.', ms=10, color='r')
+        for i in range(0, sim.input.niter, di):
+            pind = i // di 
+            img.set
+
+class dHybridRspecies(Species):
+    def __init__(self, species_number: int, parent):
+        self.n = self.number = self.sp_num = species_number
+        self.nstr = str(self.n).zfill(2)
+        self.parent = parent 
+        self.input = getattr(parent.input, f"sp{str(self.n).zfill(2)}")
+        self.loaded = False
+        if self.input.track_dump:
+            self.path = parent.path+f"/Output/Tracks/Sp{self.nstr}/track_Sp{self.nstr}.h5"
+            self.load()
+    
+    def load(self):
+        with h5File(self.path) as file:
+            self.tags = np.array(list(file.keys()))
+            self.loaded = True 
+
+    def sample(self, N, load=False): return np.array([dHybridRparticle(t, self) for t in np.random.choice(self.tags, size=N, load=load)])
+
 class dHybridR(GenericSimulation):
     """
     A simulation class to interact with dHybridR simulations in python
@@ -49,17 +99,17 @@ class dHybridR(GenericSimulation):
         #setup input, output, and restart folders
         self.parse_input()
         self.outputDir = Folder(self.path+"/Output")
-        if not self.outputDir.exists:
-            if verbose:
-                if yesno("There is no output, would you like to run this simulation?\n"): 
-                    self.run()
-        else: 
+        if not self.outputDir.exists and verbose:
+            if yesno("There is no output, would you like to run this simulation?\n"): 
+                self.run()
+        elif self.outputDir.exists: 
             self.parse_output()
-            # self.runtime: float = self.out.runtime #run time as calculated from out file, in hours
             self.ncores: int = int(np.prod(self.input.node_number))
             self.ncores_charged: int = self.ncores + self.ncores % 128
-            # self.corehours: float = self.runtime * np.prod(self.ncores)
-            # self.corehours_charged: float = self.runtime * self.ncores_charged
+            if self.outFile.exists:
+                self.runtime: float = self.outFile.runtime #run time as calculated from out file, in hours
+                self.corehours: float = self.runtime * np.prod(self.ncores)
+                self.corehours_charged: float = self.runtime * self.ncores_charged
         self.restartDir = Folder(self.path+"/Restart")
     def __repr__(self) -> str: return self.name
     def create(self) -> None:
@@ -71,12 +121,13 @@ class dHybridR(GenericSimulation):
         self.niter = self.input.niter
         self.dx: float = self.input.boxsize[0]/self.input.ncells[0]
         self.dy: float = self.input.boxsize[1]/self.input.ncells[1]
+        self.dz: float = self.input.boxsize[2]/self.input.ncells[2] if len(self.input.boxsize)==3 else np.inf
     def run(self, initializer: dHybridRinitializer, submit_script: AnvilSubmitScript) -> None:
         initializer.prepare_simulation()
         submit_script.write()
         system(f"sh {submit_script.path}")
     def parse_output(self) -> None:
-        self.out = dHybridRout(self.path+"/out")
+        self.outFile = dHybridRout(self.path+"/out")
         kwargs = {'caching':self.caching, 'verbose':self.verbose, 'parent':self}
         self.B       = VectorField(self.path + "/Output/Fields/Magnetic/Total/", name="magnetic", latex="B", **kwargs)
         self.E       = VectorField(self.path + "/Output/Fields/Electric/Total/", name="electric", latex="E", **kwargs)
@@ -94,6 +145,8 @@ class dHybridR(GenericSimulation):
             self.energy_pdf,
             self.dlne
         ] = np.array([[*extract_energy(f)] for f in self.etx1.file_names], dtype=object).T
+        if self.input.sp01.track_dump:
+            self.sp01 = dHybridRspecies(1, self)
 
 class TurbSim(dHybridR):
     def __init__(

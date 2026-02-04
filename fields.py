@@ -11,33 +11,32 @@ import numpy as np
 from h5py import File as h5File
 from functools import cached_property
 from os.path import isdir, isfile
+from matplotlib.pyplot import gca
+from matplotlib.axes import Axes
 from matplotlib.cm import plasma as default_cmap
+from keyutils.vectors import Number, Iterable
 
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
 # >-|===|>                            Functions                            <|===|-<
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
-def divergence(Fx, Fy, dx=.5, dy=.5, order=2):
-    assert len(Fx.shape)==2, "sorry, only accept 2 spatial dimensions rn :("
-    dFdx = np.roll(Fx, order, axis=1) - np.roll(Fx, -order, axis=1) / dx
-    dFdy = np.roll(Fy, order, axis=0) - np.roll(Fy, -order, axis=0) / dy
-    return (dFdx + dFdy) / (2 * order)
-def curlz(X, Y, order: int = 2) -> np.ndarray:
-    """
-    take the z-component of the curl at each point in a field
-    :param field: np.ndarray: [Fx, Fy] the x and y components of the vector field
-    :param order: int: derivative order
-    :return: c: np.ndarray: the curl of the field at each grid point
-    """
-    c = (
-        (np.roll(Y, order, axis=1) - np.roll(Y, -order, axis=1)) -
-        (np.roll(X, order, axis=0) - np.roll(X, -order, axis=0))
-    ) / (2 * order)
-    return c
 def calc_psi(Bx, By, dx, dy):
     psi = np.zeros(Bx.shape)
     psi[1:,0] = np.cumsum(Bx[1:,0])*dy
     psi[:,1:] = (psi[:,0] - np.cumsum(By[:,1:], axis=1).T*dx).T
     return psi
+
+def ddx(F,dx): return np.gradient(F, dx)[-1]
+def ddy(F,dy): return np.gradient(F, dy)[-2] 
+def ddz(F,dz): return np.gradient(F, dz)[-3]
+
+
+def intdx(F,dx): return np.cumsum(F, axis=1) * dx
+def intdy(F,dy): return np.cumsum(F, axis=0) * dy
+def Az(Bx, By, dx=1, dy=1):
+    Az = np.zeros(Bx.shape)
+    Az[1:] = intdy(Bx[1:], dy)
+    Az[:,1:] = (Az[:,0]-intdx(By[:,1:], dx).T).T
+    return Az
 
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
 # >-|===|>                             Classes                             <|===|-<
@@ -87,6 +86,8 @@ class ScalarField:
         self.latex: str = latex
         self.verbose: bool = verbose
         self.parent = parent
+        if parent:
+            self.di = tuple(np.array(parent.input.boxsize, dtype=float) / np.array(parent.input.ncells, dtype=int))
         #setup cache
         self.caching: bool = caching
         self.cache: dict = {}
@@ -155,11 +156,13 @@ class ScalarField:
         self.reader: function = self._read_h5_file
         self.shape = self[0].shape
         self.ndims = len(self.shape)
+        self.size = np.prod(self.shape) * len(self)
     def _from_h5(self, file:str) -> None:
         self.file = file.path if isinstance(file,File) else file
         self.array = self._read_h5_file(file, 0)
         self.shape = self.array.shape 
         self.ndims = len(self.shape)
+        self.size = np.prod(self.shape) * len(self)
     def _read_h5_file(self, file:str, item) -> np.ndarray:
         with h5File(file, 'r') as f:
             output = np.array(f["DATA"][:])
@@ -218,6 +221,7 @@ class VectorField:
             comp = ScalarField(val, caching=self.caching) if type(val)==str else val
             self.components.append(comp)
             setattr(self, name, comp)
+        self.size = sum([c.size for c in self.components])
         self.set_parallel(parallel)
 
     def __len__(self) -> int: return min([len(self.x), len(self.y), len(self.z)])
@@ -274,7 +278,10 @@ class VectorField:
                 self.z[k]*other.x[k] - self.x[k]*other.z[k],
                 self.x[k]*other.y[k] - self.y[k]*other.x[k]
             ])
-
+    @cached_property
+    def potential(self):
+        match len(self.x.shape):
+            case 2: return np.array([Az(self.x[i], self.y[i], dx=self.dx, dy=self.dy) for i in range(len(self))])
     def curlz(self, item: int|slice, order: int = 2):
         match type(item):
             case int(): return curlz(self.x[item], self.y[item], order=order)
@@ -352,3 +359,105 @@ class VectorField:
                 @show_video(name=self.name+"_par", latex=fr"${self.name}_\parallel$", norm=norm, cmap=cmap)
                 def reveal_thyself(s, **kwargs): return np.array([self.parallel[i] for i in range(len(self))])
         reveal_thyself(self if self.parent is None else self.parent, **kwrg)
+    def quiver(
+        self,
+        ind: int,
+        ax: Axes = None,
+        #x/y axes
+        density: float = 10,
+        x: np.ndarray|None = None,
+        y: np.ndarray|None = None,
+        transpose: bool = False,
+        #everything else goes into matplotlib command
+        **kwargs
+    ):
+        if not ax: ax = gca()
+        match x, y:
+            case None, None:
+                dx = int(self.x.shape[1] // density)
+                x = np.arange(0, self.x.shape[1], dx)
+                dy = int(self.y.shape[0] // density)
+                y = np.arange(0, self.x.shape[0], dy)
+        # plot data
+        if not transpose:
+            ax.quiver(x, y, self.y[ind][::dy,::dx].T, self.x[ind][::dy,::dx].T, **kwargs)
+        else: 
+            ax.quiver(y, x, self.x[ind][::dy,::dx], self.y[ind][::dy,::dx], **kwargs)
+class NablaOperator:
+    __ins = None
+    def __new__(cls):
+        if cls.__ins is None:
+            cls.__ins = super().__new__(cls)
+        return cls.__ins
+    def parse_grid_di(self, Field, di=None) -> tuple:
+        match di:
+            case _ if type(di) in Iterable.types: return tuple(di)
+            case _ if type(di) in Number.types: return (di, di, di) 
+            case None:
+                match Field:
+                    case np.ndarray(): pass 
+                    case ScalarField(parent=None): return (1, 1, 1)
+                    case ScalarField(ndims=3): return (Field.parent.dz, Field.parent.dy, Field.parent.dx)
+                    case ScalarField(ndims=2): return (Field.parent.dy, Field.parent.dx)
+                    case VectorField(): return parse_grid_di(Field.x, di=di)
+    def __mul__(self, other, di=None): # divergence
+        match other:
+            case VectorField():
+                d = self.parse_grid_di(other.x)
+                dz,dy,dx = d if len(d)==3 else tuple([np.inf, *d])
+                dFxdx = ddx(other.x[:], dx)
+                dFydy = ddy(other.y[:], dy)
+                dFzdz = ddz(other.z[:], dz) if other.ndims==3 else 0
+                return dFxdx + dFydy + dFzdz
+    def x(self, other, di=1): # curl
+        match other:
+            case VectorField(): 
+                d = self.parse_grid_di(other.x)
+                dz,dy,dx = d if len(d)==3 else tuple([np.inf, *d])
+                dt = 1 if not other.parent else other.parent.dt
+                dFzdy = ddy(other.z[:], dy)
+                dFydz = ddz(other.y[:], dz) if other.ndims==3 else 0 
+                dFxdz = ddz(other.x[:], dz) if other.ndims==3 else 0 
+                dFzdx = ddx(other.z[:], dx) 
+                dFydx = ddx(other.y[:], dx)
+                dFxdy = ddy(other.x[:], dy)
+                return VectorField(
+                    dFzdy - dFydz,
+                    dFxdz - dFzdx,
+                    dFydx - dFxdy,
+                    caching=other.caching, verbose=other.verbose, parent=other.parent, 
+                    name=f"Curl of {other.name}", latex=fr"$\Nabla \times {other.latex}"
+                )
+            case np.ndarray():
+                d = self.parse_grid_di(other, di)
+                dz,dy,dx = d if len(d)==3 else tuple([np.inf, *d])
+                dFzdy = ddy(other[-3], dy) if len(d)==3 else 0
+                dFydz = ddz(other[-2], dz) if len(d)==3 else 0 
+                dFxdz = ddz(other[-1], dz) if len(d)==3 else 0 
+                dFzdx = ddx(other[-3], dx) if len(d)==3 else 0
+                dFydx = ddx(other[-2], dx)
+                dFxdy = ddy(other[-1], dy)
+                return np.array([
+                    dFydx - dFxdy,
+                    dFxdz - dFzdx,
+                    dFzdy - dFydz
+                ]) if len(d)==3 else dFydx - dFxdy
+        
+    def __call__(self, *args, **kwds): # gradient
+        match args:
+            case (ScalarField(),): 
+                F: ScalarField = args[0]
+                arr: np.ndarray = F[:]
+                di: tuple[float] = F.di if 'di' not in kwds.keys() else kwds['di']
+                gradarr: np.ndarray = np.gradient(arr, di)
+                # assume that the 0th axis is time, as will be the case with all simulation outputs, but not necessarily numpy arrays
+                # assume that the last axis is x
+                return VectorField(
+                    *gradarr[:0:-1],
+                    caching=F.caching, verbose=F.verbose, name="grad-"+F.name, latex=fr"$\Nabla {F.latex[1:]}", parent=F.parent
+                )
+            case _: print("bad arguments : "+str(args)+str(kwds))
+
+Nabla = NablaOperator()
+Del = NablaOperator()
+Grad = NablaOperator()

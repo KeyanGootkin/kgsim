@@ -99,6 +99,7 @@ class dHybridRSnapshot:
     ):
         i = i if i<len(parent.B) else len(parent.B)-1
         kwargs = {'caching':caching, 'verbose':verbose, 'parent':parent}
+        print(parent, i, parent.B.x[i])
         self.B = VectorField(parent.B.x[i], parent.B.y[i], parent.B.z[i], name=parent.B.name, latex=parent.B.latex, **kwargs)
         self.u = VectorField(parent.u.x[i], parent.u.y[i], parent.u.z[i], name=parent.u.name, latex=parent.u.latex, **kwargs)
         self.E = VectorField(parent.E.x[i], parent.E.y[i], parent.E.z[i], name=parent.E.name, latex=parent.E.latex, **kwargs)
@@ -200,15 +201,15 @@ class TurbInit(dHybridRinitializer):
                 elif self.simulation.compressed:
                     self.simulation.time = np.array([int(x[-11:-3]) for x in self.simulation.density.file_names]) * self.simulation.input.dt
                     self.simulation.tau = self.simulation.time * max(self.mach if isinstance(self.mach, Iterable) else [self.mach]) / (max(self.input.boxsize))
-                if "peak_jz" in self.config.params: 
-                    self.simulation.peak_jz_ind = int(self.config.peak_jz)
-                    self.simulation.initial = dHybridRSnapshot(self.simulation,0)
-                    self.simulation.peak = dHybridRSnapshot(self.simulation, self.simulation.peak_jz_ind)
-                    self.simulation.snapshots = [
-                    self.simulation.initial, self.simulation.peak
-                    ]+[
-                    dHybridRSnapshot(self.simulation, np.argmin(abs(self.simulation.tau - n))) for n in range(1, int(self.simulation.tau[-1]//1))
-                    ]
+                # if "peak_jz" in self.config.params: 
+                #     self.simulation.peak_jz_ind = int(self.config.peak_jz)
+                #     self.simulation.initial = dHybridRSnapshot(self.simulation,0)
+                #     self.simulation.peak = dHybridRSnapshot(self.simulation, self.simulation.peak_jz_ind)
+                #     self.simulation.snapshots = [
+                #         self.simulation.initial, self.simulation.peak
+                #     ]+[
+                #         dHybridRSnapshot(self.simulation, np.argmin(abs(self.simulation.tau - n))) for n in range(1, int(self.simulation.tau[-1]//1))
+                #     ]
             case 3:
                 #set the initial k space annuli for producing turbulence
                 if "kinit" not in self.config.params: self.kinit = (1, 2*np.pi), (1, 2*np.pi), (1, 2*np.pi) #Default value if config file has no kinit
@@ -285,10 +286,10 @@ class TurbInit(dHybridRinitializer):
         FT[2, self.Ny // 2:, :self.Nx // 2, :self.Nz // 2] = np.conj(_fz[self.Ny // 2:, :self.Nx // 2, :self.Nz // 2])
         FT[2, :self.Ny // 2, :self.Nx // 2, self.Nz // 2:] = np.conj(_fz[:self.Ny // 2, :self.Nx // 2, self.Nz // 2:])
         FT[2, self.Ny // 2:, :self.Nx // 2, self.Nz // 2:] = np.conj(_fz[self.Ny // 2:, :self.Nx // 2, self.Nz // 2:])
-        # I think we have to fix the zero line
-        FT[:, self.Ny // 2, :, :] = 0.j
-        FT[:, :, self.Nx // 2, :] = 0.j
-        FT[:, :, :, self.Nz // 2] = 0.j
+        # I think we have to fix the zero line - UPDATE: we don't :)
+        # FT[:, self.Ny // 2, :, :] = 0.j
+        # FT[:, :, self.Nx // 2, :] = 0.j
+        # FT[:, :, :, self.Nz // 2] = 0.j
         self.FT = FT
         # take the inverse fourier transform
         y: np.ndarray = np.real(
@@ -317,8 +318,8 @@ class TurbInit(dHybridRinitializer):
         phases[2] *= 0  # don't wiggle the z component
         # Setting the fourier transform
         FT: np.ndarray = np.zeros(field.shape, dtype=complex)  # same shape as field
-        FT[0][init_mask] = amp[0] * np.pi / 2 # set x and y amplitudes
-        FT[1][init_mask] = amp[1] * np.pi
+        FT[0][init_mask] = amp * np.pi / 2 # set x and y amplitudes
+        FT[1][init_mask] = amp * np.pi
         FT *= phases  # apply phases
         # subtract off the parallel x/y components
         if no_div:
@@ -339,8 +340,8 @@ class TurbInit(dHybridRinitializer):
 
         FT[0, self.Ny // 2, 1:self.Nx // 2] = FT[0, self.Ny // 2, self.Nx // 2 + 1:][::-1]
         FT[0, self.Ny // 2, 1:self.Nx // 2] = np.conj(FT[0, self.Ny // 2, self.Nx // 2 + 1:][::-1])
-        FT[0, self.Ny // 2, :] = 0.j
-        FT[0, :, self.Nx // 2] = 0.j
+        # FT[0, self.Ny // 2, :] = 0.j
+        # FT[0, :, self.Nx // 2] = 0.j
 
         # take the inverse fourier transform
         y: np.ndarray = np.array([*np.real(
@@ -352,7 +353,7 @@ class TurbInit(dHybridRinitializer):
         ), np.zeros(FT[0].shape)]) / M * self.Nx * self.Ny
 
         rms = np.sqrt(np.nanmean(y[0]**2 + y[1]**2))
-        y *= (amp[0] / rms)
+        y *= (amp / rms)
         return np.float32(y)
     
     def fluctuate(self, field, amp, no_div=True):

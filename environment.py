@@ -9,20 +9,24 @@ These are the environment variables that tells pysim where to find/look for diff
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
 # >-|===|>                           Definitions                           <|===|-<
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
-environment_variable_start_line = 16 #might have to change when you update this file
-first_time_setup_line = 54
+environment_variable_start_line = 17 #might have to change when you update this file
+first_time_setup_line = 61
 isAnvil: bool = Folder("/anvil").exists
 isKeyan: bool = Folder("/Users/keyan").exists
 thisFile = File(__file__)
-simulationDir = Folder("/Users/keyan/code/data/sims/")
-figDir = videoDir = Folder("./")
-frameDir = Folder("/Users/keyan/code/data/frames/")
+simulationDir = Folder(f"/anvil/scratch/x-kgootkin/sims/") # default location to put/look for simulations
+figDir = Folder(f"/home/x-kgootkin/turbulence/figures/") # default location for figures to go
+frameDir = Folder(f"/home/x-kgootkin/frames/") # default location for frames of videos to go
+videoDir = Folder(f"/home/x-kgootkin/videos/") # default location for videos to go
 pysimDir = Folder(thisFile.parent) # Where the package lives
 dHybridRtemplate = pysimDir + "/templates/dHybridR/" # where the base dHybridR template is
 
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
 # >-|===|>                            Functions                            <|===|-<
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
+def available() -> list[str]: 
+    return simulationDir.children
+
 def setup_environment():
     global isAnvil, isKeyan
     if isAnvil:

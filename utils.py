@@ -29,7 +29,7 @@ def redirect_to_tqdm():
         try:
             tqdm.write(*args, **kwargs)
         except:
-            old_print(*args, ** kwargs)
+            old_print(*args, **kwargs)
 
     try:
         # Globaly replace print with new_print

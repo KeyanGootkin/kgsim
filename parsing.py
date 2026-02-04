@@ -38,7 +38,6 @@ class File:
         self.master = master if not isinstance(master, str) else File(master)
         self.executable = executable
         self.verbose = verbose
-        self.readable: bool = self.extension not in unreadable_file_types and open(self.path).readable
     def __repr__(self) -> str: return self.path
     def __str__(self) -> str: return "\n".join(self.lines)
     def __add__(self, other):
@@ -55,7 +54,6 @@ class File:
     def lines(self): 
         if not self.exists: return []
         with open(self.path, 'r') as file: 
-            if not self.readable: raise PermissionError(f"attempted to read unreadable file: {self.path}")
             return [f.strip('\n') for f in file.readlines()]
     def copy(self, destination:str): 
         copy(self.path, destination)

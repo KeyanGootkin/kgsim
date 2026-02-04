@@ -14,6 +14,8 @@ from matplotlib.animation import FuncAnimation, PillowWriter, FFMpegWriter
 from functools import wraps
 import os
 from matplotlib.colors import LinearSegmentedColormap, ListedColormap,hex2color
+from h5py import File as h5File
+from tqdm import tqdm
 
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
 # >-|===|>                           Definitions                           <|===|-<
@@ -24,7 +26,7 @@ blue = "#7350E6"
 lightblue = "#AE9FE3"
 shadow = "#B8B7B8"
 manoaskies = LinearSegmentedColormap.from_list("manoaskies", [pink, blue])
-manoaskies_centered = LinearSegmentedColormap.from_list("manoaskies_centered", [lightpink, pink, shadow, blue, lightblue])
+manoaskies_centered = LinearSegmentedColormap.from_list("manoaskies_centered", [lightpink, pink, "#000000", blue, lightblue])
 manoaskies_background_blue = "#0C0524"
 pink2grey = LinearSegmentedColormap.from_list("p2g", [pink, shadow])
 grey2black = LinearSegmentedColormap.from_list("g2b", [shadow, "#000000"])
@@ -64,11 +66,11 @@ def auto_norm(
     low = np.nanmin(frames) if saturate is None else np.nanquantile(frames, 1-saturate[0]) if isinstance(saturate, tuple) else np.nanquantile(frames, 1-saturate)
     high = np.nanmax(frames) if saturate is None else np.nanquantile(frames, 0+saturate[1]) if isinstance(saturate, tuple) else np.nanquantile(frames, 0+saturate)
     match norm.lower():
-        case "lognorm":
+        case "lognorm"|"log":
             if low < 0: raise ValueError(f"minimum is {low}, LogNorm only takes positive values")
             if low==0: low=np.nanmin(frames[frames!=0])
             return LogNorm(vmin=low, vmax=high)
-        case "symlognorm":
+        case "symlognorm"|"symlog"|"sym":
             sig = np.nanstd(frames)
             mu = np.nanmean(frames)
             if np.abs(mu)-sig > 0: raise TypeError("SymLogNorm is only designed for stuff close to zero!")
@@ -83,6 +85,16 @@ def auto_norm(
 def tile(arr: np.ndarray) -> np.ndarray:
     """take an image and create a 3x3 grid of that image"""
     return np.r_[np.c_[arr, arr, arr], np.c_[arr, arr, arr], np.c_[arr, arr, arr]]
+def align_algorithm(x: list|np.ndarray, mode: str):
+    match mode:
+        case 'mid'|'m'|'center'|'c':
+            return [(x[i] + x[i+1])/2 for i in range(len(x)-1)]
+        case 'logmid'|'lm':
+            return [np.log10((10**x[i] + 10**x[i+1])/ 2) for i in range(len(x)-1)]
+        case 'left'|'l':
+            return x[:-1]
+        case 'right'|'r':
+            return x[1:]
 # Plots
 def show(
         field: np.ndarray,
@@ -95,7 +107,7 @@ def show(
         ax = None,
         axis: bool = True,
         figsize: tuple[float, float] = (10, 10),
-        show: bool = True,
+        show: bool = False,
         #plot parameters
         cmap = default_cmap,
         colorbar: bool = True,
@@ -150,11 +162,11 @@ def show(
     image = tile(field) if tile_image else field
     # check axes
     if x is None: x, y = np.mgrid[:image.shape[0], :image.shape[1]]
+    if tile_image: x, y = np.r_[x, x+x[-1], x+2*x[-1]], np.r_[y, y+y[-1], y+2*y[-1]]
     else: assert (len(x), len(y)) == image.shape, f"Given x of shape {len(x)} and y of shape {len(y)} but image is of shape {image.shape}"
     # prep figure
-    close_fig = True if fig is None else False
-    show = show if fig is None else False
-    if fig is None: (fig, ax) = plt.subplots(figsize=figsize)
+    if ax is None: (fig, ax) = plt.subplots(figsize=figsize)
+    fig = ax.get_figure()
     if not axis: 
         ax.axis('off')
         ax.set_position([0, 0, 1, 1])
@@ -166,7 +178,10 @@ def show(
         divider = make_axes_locatable(ax)
         colorbar_location = colorbar_style.pop("location") if "location" in colorbar_style.keys() else "right"
         cax = divider.append_axes(colorbar_location, **colorbar_style)
-        fig.colorbar(img, cax=cax, ax=ax, ticks=cticks, label=units)
+        fig.colorbar(img, cax=cax, ax=ax, ticks=cticks, label=units, orientation = 'vertical' if colorbar_location in ('right', 'left') else 'horizontal')
+        if colorbar_location=='top':
+            cax.xaxis.set_ticks_position('top')
+            cax.xaxis.set_label_position('top')
     # contour
     if not contour is None: ax.contour(contour, **contour_style)
     # set limits
@@ -181,214 +196,248 @@ def show(
         if not '.' in save: save +=".jpeg"
         plt.savefig(save, dpi=dpi)
     if show: plt.show()
-    if close_fig: plt.close(fig)
-    else: return fig, ax, img
-def diagnose_frame(
-        s,
-        i: int,
-        file_name: str,
-        outdir: str = "./frames/diag/",
-        track_params: list = [],
-        full_path = False,
-        return_plots: bool = False
-):
-    """
-    make a diagnostic image for a simulation at some index i
-    :param s: The Simulation object to pull data from
-    :param i: The index at which to pull data
-    :param outdir:
-    :return:
-    """
-    mosaic: str = """
-    ppbb
-    ppbb
-    eeee
-    jjjj
-    """
-    # Fields
-    fig, axes = plt.subplot_mosaic(mosaic, figsize=(5, 5), constrained_layout=True)
-    show(s.density[i], fig=fig, ax=axes['p'], norm=LogNorm(vmax=100, vmin=.1))
-    axes['p'].set_title(r"$\rho$", fontsize=14)
-    show(s.B.z[i], fig=fig, ax=axes['b'], vmax=5, vmin=0)
-    axes['b'].set_title(r"$\vec{B}_z$", fontsize=14)
-    # Energy Spectrum
-    m = s.mach
-    x = s.energy_grid[i]
-    y = s.energy_grid[i] * s.energy_pdf[i]
-    eline, = axes['e'].loglog(x, y, color='black')
-    axes['e'].set_xlim(1e-1, 1e4)
-    axes['e'].set_xlabel(r"$E$ [$V_A^2$]")
-    axes['e'].set_ylim(1e-3, 1e2)
-    axes['e'].set_ylabel(r"$Ef_E$ [$V_A^2$]")
-    # Jz and other tracks
-    for j in track_params: axes['j'].plot(s.tau, j, color="black")
-    axes['j'].axvline(s.tau[i], color='black', ls='-.')
-    jtrack = axes['j'].scatter(s.tau[i], j[i], color='red')
-    axes['j'].set_xlabel(r"$\tau$")
-    if len(track_params)==1: axes['j'].set_ylabel(r"$J_z$")
-    fig.suptitle(rf"$\tau$ = {s.tau[i]:.2f}", fontsize=14)
-    # Save figure
-    if isinstance(full_path, str): 
-        plt.savefig(full_path)
-        return None if not return_plots else jtrack
-    if not file_name.endswith(".png"): file_name += ".png"
-    plt.savefig(outdir + f"/{s.name}/" + file_name)
+    return fig, ax, img
+def contour(
+        Z: np.ndarray, 
+        #x/y axes
+        x: np.ndarray|None = None,
+        y: np.ndarray|None = None,
+        #figure setup
+        fig = None,
+        ax = None,
+        axis: bool = True,
+        figsize: tuple[float, float] = (10, 10),
+        show: bool = False,
+        #plot parameters
+        levels = 10,
+        color = 'black',
+        colors = None,
+        cmap = None,
+        negative_linestyles = '-',
+        linestyles = '-',
+        #plot formating
+        xlim: tuple = (None, None),
+        ylim: tuple = (None, None),
+        title: str|None = None,
+        #presentation parameters
+        save: str = "",
+        dpi: int = 100,
+        #throw the rest in a dict
+        **kwds
+    ):
+    # prep data
+    assert (ndims:=len(Z.shape))==2, f"show was given an image with {ndims} dimensions, please provide a 2d array"
+    # check axes
+    if x is None: x, y = np.mgrid[:Z.shape[0], :Z.shape[1]]
+    else: assert (len(x), len(y)) == Z.shape, f"Given x of shape {len(x)} and y of shape {len(y)} but image is of shape {image.shape}"
+    # prep figure
+    if ax is None: (fig, ax) = plt.subplots(figsize=figsize)
+    fig = ax.get_figure()
+    if not axis: 
+        ax.axis('off')
+        ax.set_position([0, 0, 1, 1])
+        colorbar = False
+    # plot data
+    contour_dict = {'levels':levels,"linestyles":linestyles,'negative_linestyles':negative_linestyles}
+    if cmap: #plot with a cmap
+        contour_dict['cmap'] = cmap
+    else: #plot with a color
+        contour_dict['colors'] = color if not colors else colors
+    img = ax.contour(
+        x, y, Z,
+        **contour_dict,
+        **kwds
+    )
+    # set limits
+    ax.set_xlim(xlim)
+    ax.set_ylim(ylim)
+    # set title
+    ax.set_title(title)
+    # set aspect
+    ax.set_aspect('equal')
+    # present the figure
+    if len(save)>0: 
+        if not '.' in save: save +=".jpeg"
+        plt.savefig(save, dpi=dpi)
+    if show: plt.show()
+    return fig, ax, img
+def contourf(
+        Z: np.ndarray, 
+        #x/y axes
+        x: np.ndarray|None = None,
+        y: np.ndarray|None = None,
+        #figure setup
+        fig = None,
+        ax = None,
+        axis: bool = True,
+        figsize: tuple[float, float] = (10, 10),
+        show: bool = False,
+        #plot parameters
+        levels = 10,
+        cmap = default_cmap,
+        colorbar: bool = True,
+        colorbar_style: dict = {'location':'right', "size":"7%", "pad":0.05},
+        cticks: list|None = None,
+        units: str|None = None,
+        #plot formating
+        xlim: tuple = (None, None),
+        ylim: tuple = (None, None),
+        title: str|None = None,
+        #presentation parameters
+        save: str = "",
+        dpi: int = 100,
+        #throw the rest in a dict
+        **kwds
+    ):
+    # prep data
+    assert (ndims:=len(Z.shape))==2, f"show was given an image with {ndims} dimensions, please provide a 2d array"
+    # check axes
+    if x is None: x, y = np.mgrid[:z.shape[0], :z.shape[1]]
+    else: assert (len(x), len(y)) == z.shape, f"Given x of shape {len(x)} and y of shape {len(y)} but image is of shape {image.shape}"
+    # prep figure
+    if ax is None: (fig, ax) = plt.subplots(figsize=figsize)
+    fig = ax.get_figure()
+    if not axis: 
+        ax.axis('off')
+        ax.set_position([0, 0, 1, 1])
+        colorbar = False
+    # plot data
+    contour_dict = {'levels':levels,"cmap":cmap}
+    img = ax.contourf(
+        x, y, Z,
+        **contour_dict,
+        **kwds
+    )
+    # colorbar
+    if colorbar: 
+        divider = make_axes_locatable(ax)
+        colorbar_location = colorbar_style.pop("location") if "location" in colorbar_style.keys() else "right"
+        cax = divider.append_axes(colorbar_location, **colorbar_style)
+        fig.colorbar(img, cax=cax, ax=ax, ticks=cticks, label=units)
+    # set limits
+    ax.set_xlim(xlim)
+    ax.set_ylim(ylim)
+    # set title
+    ax.set_title(title)
+    # set aspect
+    ax.set_aspect('equal')
+    # present the figure
+    if len(save)>0: 
+        if not '.' in save: save +=".jpeg"
+        plt.savefig(save, dpi=dpi)
+    if show: plt.show()
+    return fig, ax, img
+def diffplot(x, y, align: str = 'mid', **kwargs):
+    dx = np.diff(x)
+    dy = np.diff(y)
+    x_aligned = align_algorithm(x, align)
+    return plt.plot(x_aligned, dy/dx, **kwargs)
 # Videos
-def video_plot(xs, ys, file, fps=10, compress=1, grid=True, scale='linear', **kwargs):
-    fig, ax = plt.subplots(dpi=100)
-    xplot, yplot = nan_clip(xs[0], ys[0])
-    yplot[yplot == 0] = 1e-9
-    line, = ax.plot(xplot, yplot, **kwargs)
-    ax.set_ylim(-6, np.nanmax(ys))
-    ax.set_xlim(-1, 3)
-    if grid: ax.grid()
-    if scale == 'log':
-        ax.set_xscale('log')
-        ax.set_yscale('log')
-
-    def update(t):
-        index = int(t * fps * compress)
-        if index < len(ys) - 1:
-            xplot, yplot = nan_clip(xs[index], ys[index])
-            yplot[yplot == 0] = 1e-9
-            line.set_xdata(xplot)
-            line.set_ydata(yplot)
-            return mplfig_to_npimage(fig)
-        xplot, yplot = nan_clip(xs[-1], ys[-1])
-        line.set_xdata(xplot)
-        line.set_ydata(yplot)
-        return mplfig_to_npimage(fig)
-
-    animation = VideoClip(update, duration=len(ys) / compress / fps)
-    animation.write_videofile(file, fps=fps, logger=None, progress_bar=False)
-def show_movie(
-        frames: np.ndarray,
-        fname: str|None = None,
-        fps: int = 30,
-        figsize: tuple = (5, 5),
-        title: str = 'default',
-        **kwargs
+def plot_video(
+    xs, ys, 
+    fname, 
+    ax=None,
+    fps=10, 
+    figsize=(5, 5), 
+    **kwargs
+):
+    if not ax: fig, ax = plt.subplots(figsize=figsize)
+    fig = ax.get_figure()
+    [line] = ax.plot(xs[0], ys[0], **kwargs)
+    def update(f: int):
+        line.set_xdata(xs[f])
+        line.set_ydata(ys[f])
+    anim = FuncAnimation(fig, update, frames=len(xs))
+    anim.save(fname, fps=fps)
+def show_video(
+    frames: np.ndarray,
+    fname: str,
+    ax = None,
+    norm = 'linear',
+    fps: int = 30,
+    **kwargs
 ):
     # create figure and axis 
-    fig, ax = plt.subplots(figsize=figsize)
-    fig,ax,img = show(frames[0], fig=fig, ax=ax, **kwargs)
+    fig,ax,img = show(frames[0], ax=ax, norm=auto_norm(norm, frames), show=False, **kwargs)
     def update(f: int):
         img.set_array(frames[f])
-        match title:
-            case 'default': ax.set_title(f"frame: {f}")
-            case str(): ax.set_title(title)
-
     anim = FuncAnimation(fig, update, frames=len(frames))
     anim.save(fname, fps=fps)
-def monitor_video(s, outdir="./monitor/"):
-    ensure_path(monitor_frames:=f"/home/x-kgootkin/turbulence/frames/monitor/{s.name}/")
-    already_there = glob(monitor_frames+"*")
-    jz = s.Jz()
-    print(f"Monitor Activation: {dtime.now()}")
-    for i in progress_bar(range(len(jz))):
-        full_path = f"{monitor_frames}monitor_{str(i).zfill(6)}.png"
-        if os.path.exists(full_path): continue
-        diagnose_frame(s, i, '', full_path=full_path, track_params=[jz])
-    make_video(f"{s.name}_monitor", monitor_frames, outdir=outdir)
+def particle_video(
+    sim,
+    particles: list[str] | int,
+    background = None,      
+    resume: bool = False,
+    res: int = None,
+    zfill: int = 10,
+    dpi: int = 250,
+    # paticle plotting keywords
+    color = 'red',
+    marker='.',
+    ms=10, 
+    # assume the rest are keywords for the show function
+    **kwds
+):
+    # check species
+    assert sim.input.num_species == 1, "only one species is implemented rn :-("
+    # check the time resolution is valid
+    if not res: res = sim.input.sp01.track_nstore
+    dnp = sim.input.sp01.track_nstore
+    dnb = sim.input.ndump
+    assert (dnp % res == 0) & (res % dnb == 0), "your resolution must be an integer multiple of track_nstore and ndump must be an integer multiple of res."
+    # handle the resuming
+    if not resume: 
+        os.system(f'rm {frameDir.path}/*')
+        i_start = 0
+    else:
+        last_file = sorted(frameDir.children)[-1]
+        last_iter = int(last_file[:-4])
+        i_start = last_iter + res
+    # find the file
+    fn = sim.path+"/Output/Tracks/Sp01/track_Sp01.h5"
+    with h5File(fn) as file:
+        # extract particle tracks based on the particles argument
+        tags = np.array(list(file.keys()))
+        match particles:
+            case [str(x), ]: selected = particles 
+            case int(x): selected = np.random.choice(tags, size=x, replace=False)
+        sx, sy = np.array([file[t]['x1'] for t in selected]).T, np.array([file[t]['x2'] for t in selected]).T 
+        # setup background
+        if not background: background = sim.density
+        # initialize plots
+        fig,ax,img = show(
+            background[0], 
+            x=range(0, sim.input.boxsize[0], sim.dx), y=range(0, sim.input.boxsize[1], sim.dy), 
+            zorder=1,
+            **kwds
+        )
+        line, = ax.plot(
+            sx[0], sy[0], 
+            ls='None', color=color, marker=marker, ms=ms,
+            zorder = 2
+        )
+        # execute the loop
+        for i in tqdm(range(i_start, sim.input.niter, res)):
+            pind = i // dnp 
+            line.set_data(sx[pind], sy[pind])
+            if i % dnb == 0:
+                bind = i // dnb 
+                img.set_array(background[bind])
+            plt.savefig(f"{frameDir.path}/{str(i).zfill(zfill)}.png", dpi=dpi)
 
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
 # >-|===|>                            Decorators                           <|===|-<
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
-def line_video(
-    compress: int = 1, fps: int = 10, fs: tuple = (5,5),grid: bool = True,
-    xlimits = None, ylimits = None, scale = None, xscale = None, yscale = None,
-    yticks = None, yticklabels = None, hlines=[], vlines=[], **video_kwargs
-):
-    def line_video_decorator(func):
-        @wraps(func)
-        def line_video_wrapper(*args, save="default", **kwargs):
-            # Calculate data via func
-            xs, ys = func(*args, **kwargs)
-            # Setup plot
-            fig, ax = plt.subplots(figsize=fs)
-            xplot, yplot = nan_clip(xs[0], ys[0])
-            yplot[yplot == 0] = 1e-9
-            # Plot first line
-            line, = ax.plot(xplot, yplot, **video_kwargs)
-            # Set up axes
-            for hl in hlines: ax.axhline(hl, color=video_kwargs["color"] if "color" in video_kwargs.keys() else "black")
-            for vl in vlines: ax.axvline(vl, color=video_kwargs["color"] if "color" in video_kwargs.keys() else "black")
-            ax.set_xlim(
-                np.nanmin(xs) if xlimits is None else xlimits[0], 
-                np.nanmax(xs) if xlimits is None else xlimits[1]
-            )
-            ax.set_ylim(
-                np.nanmin(ys) if ylimits is None else ylimits[0],
-                np.nanmax(ys) if ylimits is None else ylimits[1]
-            )
-            if not yticks is None: ax.set_yticks(yticks)
-            if not yticklabels is None: ax.set_yticklabels(yticklabels)
-            if grid: ax.grid()
-            if not scale is None:
-                ax.set_xscale(scale)
-                ax.set_yscale(scale)
-            else: 
-                if not xscale is None: ax.set_xscale(xscale)
-                if not yscale is None: ax.set_yscale(yscale)
-            # define video making function
-            def update(t):
-                index = int(t * fps * compress)
-                if index < len(ys) - 1:
-                    xplot, yplot = nan_clip(xs[index], ys[index])
-                    yplot[yplot == 0] = 1e-9
-                    line.set_xdata(xplot)
-                    line.set_ydata(yplot)
-                    return mplfig_to_npimage(fig)
-
-                xplot, yplot = nan_clip(xs[-1], ys[-1])
-                line.set_xdata(xplot)
-                line.set_ydata(yplot)
-                return mplfig_to_npimage(fig)
-            # save video
-            animation = VideoClip(update, duration=len(ys) / compress / fps)
-            animation.write_videofile(save+".mp4", fps=fps, logger=None)
-        return line_video_wrapper
-    return line_video_decorator
-def show_video(
-    name: str = 'none', 
-    latex: str = None, 
-    cmap = default_cmap, 
-    norm="none", 
-    figsize=(5,5)
-):
-    def simple_video_decorator(func):
-        @wraps(func)
-        def simple_video_wrapper(
-            s, *args, 
-            cmap=cmap, norm=norm, figsize=figsize, 
-            savedir=videoDir.path, compress=1, fps=10, dpi=250,
-            **kwargs
-        ):
-            # make a directory to store frames in
-            Folder(f"{frameDir.path}/{s.name}/{name}/").make()
-            Folder(savedir).make()
-            # make the frames and return as a numpy array
-            frames = func(s, *args, **kwargs)
-            # plot the frames
-            fig,ax = plt.subplots(figsize=figsize)
-            fig.set_dpi(dpi)
-            normalization = norm if not isinstance(norm, str) else auto_norm(norm, frames)
-            *_,img = show(
-                frames[0], 
-                fig = fig,
-                ax = ax,
-                cmap=cmap, 
-                norm=normalization, 
-                title=f"{latex}" if isinstance(latex, str) else f"{name}"
-            )
-            def update(t):
-                index = int(t * fps * compress)
-                if index < len(frames) - 1:
-                    img.set_array(frames[index])
-                    return mplfig_to_npimage(fig)
-                img.set_array(frames[-1])
-                return mplfig_to_npimage(fig)
-            animation = VideoClip(update, duration=len(frames) / compress / fps)
-            animation.write_videofile(f"{savedir}/{s.name}_{name}.mp4", fps=fps)
-        return simple_video_wrapper
-    return simple_video_decorator
+def plot_video_function(func):
+    @wraps(func)
+    def line_video_wrapper(*args, ax=None, save="default.gif", **kwargs):
+        # Calculate data via func
+        xs, ys = func(*args, **kwargs)
+        plot_video(xs, ys, save, ax=ax)
+    return line_video_wrapper
+def show_video_function(func):
+    @wraps(func)
+    def simple_video_wrapper(*args, save="default.gif", norm='linear', **kwargs):
+        frames = func(*args, **kwargs)
+        show_video(frames, save, norm=norm)
+    return simple_video_wrapper
