@@ -32,7 +32,10 @@ def ensure_path(path):
 class File:
     def __init__(self, path:str, master=None, executable:bool=False, verbose:bool=False) -> None:
         self.path = abspath(path.replace("\\", "/").replace('//', '/'))
-        self.parent = "/".join(self.path.split("/")[:-1])
+        pathlist = self.path.split("/")
+        self.parent = "/".join(pathlist[:-1])
+        self.grandparent = "/".join(pathlist[:-2]) if len(pathlist)>3 else None
+        self.greatgrandparent = "/".join(pathlist[:-3]) if len(pathlist)>4 else None
         self.name = self.path.split("/")[-1]
         self.extension = self.name.split(".")[-1] if "." in self.name else None
         self.master = master if not isinstance(master, str) else File(master)

@@ -7,10 +7,10 @@ from pysim.parsing import File, Folder
 # >-|===|>                           Definitions                           <|===|-<
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
 thisFile = File(__file__)
-pysimDir = Folder(thisFile.parent) # Where the package lives
+pysimDir = Folder(thisFile.grandparent) # Where the package lives
 dHybridRtemplate = pysimDir + "/templates/dHybridR/" # where the base dHybridR template is
 # parse what kinda computer is running this
-isAnvil: bool = thisFile.path.lower().startswith("/anvil")
+isAnvil: bool = Folder("/anvil").exists
 isPC: bool = thisFile.path.lower().startswith("/users")
 isWindows: bool = thisFile.path.lower().startswith(r"C:")
 if isAnvil: 

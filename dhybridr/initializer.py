@@ -286,10 +286,7 @@ class TurbInit(dHybridRinitializer):
         FT[2, self.Ny // 2:, :self.Nx // 2, :self.Nz // 2] = np.conj(_fz[self.Ny // 2:, :self.Nx // 2, :self.Nz // 2])
         FT[2, :self.Ny // 2, :self.Nx // 2, self.Nz // 2:] = np.conj(_fz[:self.Ny // 2, :self.Nx // 2, self.Nz // 2:])
         FT[2, self.Ny // 2:, :self.Nx // 2, self.Nz // 2:] = np.conj(_fz[self.Ny // 2:, :self.Nx // 2, self.Nz // 2:])
-        # I think we have to fix the zero line - UPDATE: we don't :)
-        # FT[:, self.Ny // 2, :, :] = 0.j
-        # FT[:, :, self.Nx // 2, :] = 0.j
-        # FT[:, :, :, self.Nz // 2] = 0.j
+
         self.FT = FT
         # take the inverse fourier transform
         y: np.ndarray = np.real(
@@ -340,8 +337,8 @@ class TurbInit(dHybridRinitializer):
 
         FT[0, self.Ny // 2, 1:self.Nx // 2] = FT[0, self.Ny // 2, self.Nx // 2 + 1:][::-1]
         FT[0, self.Ny // 2, 1:self.Nx // 2] = np.conj(FT[0, self.Ny // 2, self.Nx // 2 + 1:][::-1])
-        # FT[0, self.Ny // 2, :] = 0.j
-        # FT[0, :, self.Nx // 2] = 0.j
+        
+        self.FT = FT
 
         # take the inverse fourier transform
         y: np.ndarray = np.array([*np.real(
