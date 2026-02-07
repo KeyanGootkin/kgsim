@@ -346,7 +346,7 @@ def ffmpeg(
     ) -> None:
     file_path: str = destination + '/' + file_name
     if not file_path.endswith('.mp4'): file_path += ".mp4"
-    os.system(f"ffmpeg -framerate {fps} -pattern_type glob -i '{source+'/*.png'}' -c:v libx264 -pix_fmt yuv420p -y {file_path}")
+    os.system(f"ffmpeg -loglevel 8 -framerate {fps} -pattern_type glob -i '{source+'/*.png'}' -c:v libx264 -pix_fmt yuv420p -y {file_path}")
 def func_video(
         video_name: str, fig: Figure, updater: Callable, N: int, 
         frames: str = frameDir.path, destination: str = videoDir.path, 
@@ -354,10 +354,17 @@ def func_video(
     ) -> None:
     if len(glob(f"{frames}/*.png"))>0: os.system(f"rm {frames}/*.png")
     ndigits = len(str(N))
+    # if the size isn't divisible by 2 ffmpeg gets mad???
+    [wpix, hpix] = (np.array(fig.get_size_inches()) * dpi // 1).astype(int)
+    if wpix%2==1: wpix += 1 
+    if hpix%2==1: hpix += 1
+    fig.set_size_inches(wpix/dpi, hpix/dpi)
+    # make the frames and save them to the frames directory
     for i in verbose_bar(range(N), verbose):
         updater(i)
         fig.savefig(f"{frames}/{str(i).zfill(ndigits)}.png", dpi=dpi)
-    ffmpeg(video_name, destination=destination, fps=fps)
+    # make the video
+    ffmpeg(video_name, source=frames, destination=destination, fps=fps)
 def line_video(
     xs, ys, 
     fname, 
