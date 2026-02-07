@@ -6,7 +6,7 @@ from pysim.utils import yesno
 from pysim.parsing import Folder
 from pysim.environment import dHybridRtemplate
 from pysim.fields import ScalarField, VectorField
-from pysim.simulation import GenericSimulation
+from pysim.simulation import GenericSimulation, SimulationGroup
 from pysim.particles import Species, Particle
 from pysim.plotting import show
 from pysim.dhybridr.io import dHybridRinput, dHybridRout
@@ -16,6 +16,7 @@ from pysim.dhybridr.anvil_submit import AnvilSubmitScript
 import numpy as np 
 from h5py import File as h5File
 from os import system
+from os.path import isdir
 from glob import glob
 
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
@@ -145,6 +146,9 @@ class dHybridR(GenericSimulation):
             self.energy_pdf,
             self.dlne
         ] = np.array([[*extract_energy(f)] for f in self.etx1.file_names], dtype=object).T
+        self.energy_grid = np.vstack(self.energy_grid) 
+        self.energy_pdf = np.vstack(self.energy_pdf) 
+        self.dlne = np.vstack(self.dlne) 
         if self.input.sp01.track_dump:
             self.sp01 = dHybridRspecies(1, self)
 
@@ -161,3 +165,11 @@ class TurbSim(dHybridR):
         self.config = dHybridRconfig(self, mode='turb')
         
         self.initializer = TurbInit(self)
+
+class dHybridRgroup(SimulationGroup):
+    def __init__(self, path):
+        SimulationGroup.__init__(self, path, simtype=dHybridR)
+
+class TurbGroup(SimulationGroup):
+    def __init__(self, path):
+        SimulationGroup.__init__(self, path, simtype=TurbSim)

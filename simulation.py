@@ -5,6 +5,8 @@ from pysim.utils import yesno
 from pysim.parsing import Folder
 from pysim.environment import simulationDir
 
+from os.path import isdir
+
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
 # >-|===|>                             Classes                             <|===|-<
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
@@ -49,3 +51,8 @@ class GenericSimulation:
     
     def create(self):
         self.template.copy(self.path)
+
+class SimulationGroup(Folder):
+    def __init__(self, path: str, simtype = GenericSimulation) -> None: 
+        Folder.__init__(self, path)
+        self.simulations = {simtype(x) for x in self.children if isdir(x)}

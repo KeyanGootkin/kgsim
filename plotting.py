@@ -2,20 +2,26 @@
 # >-|===|>                             Imports                             <|===|-<
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
 #pysim imports
-from pysim.utils import nan_clip
+from pysim.utils import nan_clip, verbose_bar
 from pysim.parsing import File, Folder, ensure_path
 from pysim.environment import frameDir, videoDir
 #nonpysim imports
-import numpy as np 
-import matplotlib.pyplot as plt 
-from matplotlib.colors import LogNorm, SymLogNorm, TwoSlopeNorm, Normalize
-from mpl_toolkits.axes_grid1 import make_axes_locatable
-from matplotlib.animation import FuncAnimation, PillowWriter, FFMpegWriter
-from functools import wraps
 import os
-from matplotlib.colors import LinearSegmentedColormap, ListedColormap,hex2color
+
+from functools import wraps
+from typing import Callable
+
+from glob import glob
+import numpy as np 
 from h5py import File as h5File
 from tqdm import tqdm
+
+import matplotlib.pyplot as plt 
+from matplotlib.figure import Figure
+from matplotlib.colors import LogNorm, SymLogNorm, TwoSlopeNorm, Normalize
+from mpl_toolkits.axes_grid1 import make_axes_locatable
+from matplotlib.animation import FuncAnimation, FFMpegWriter
+from matplotlib.colors import LinearSegmentedColormap, ListedColormap,hex2color
 
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
 # >-|===|>                           Definitions                           <|===|-<
@@ -333,39 +339,76 @@ def diffplot(x, y, align: str = 'mid', **kwargs):
     x_aligned = align_algorithm(x, align)
     return plt.plot(x_aligned, dy/dx, **kwargs)
 # Videos
-def plot_video(
+def ffmpeg(
+        file_name: str, 
+        source: str = frameDir.path, destination: str = videoDir.path, 
+        fps: int = 30
+    ) -> None:
+    file_path: str = destination + '/' + file_name
+    if not file_path.endswith('.mp4'): file_path += ".mp4"
+    os.system(f"ffmpeg -framerate {fps} -pattern_type glob -i '{source+'/*.png'}' -c:v libx264 -pix_fmt yuv420p -y {file_path}")
+def func_video(
+        video_name: str, fig: Figure, updater: Callable, N: int, 
+        frames: str = frameDir.path, destination: str = videoDir.path, 
+        dpi: int = 100, fps: int = 30, verbose=True
+    ) -> None:
+    if len(glob(f"{frames}/*.png"))>0: os.system(f"rm {frames}/*.png")
+    ndigits = len(str(N))
+    for i in verbose_bar(range(N), verbose):
+        updater(i)
+        fig.savefig(f"{frames}/{str(i).zfill(ndigits)}.png", dpi=dpi)
+    ffmpeg(video_name, destination=destination, fps=fps)
+def line_video(
     xs, ys, 
     fname, 
-    ax=None,
-    fps=10, 
-    figsize=(5, 5), 
+    destination: str = '.',
+    ax=None, figsize=(5, 5),
+    fps=20, dpi=100,
     **kwargs
 ):
     if not ax: fig, ax = plt.subplots(figsize=figsize)
     fig = ax.get_figure()
     [line] = ax.plot(xs[0], ys[0], **kwargs)
     def update(f: int):
-        line.set_xdata(xs[f])
-        line.set_ydata(ys[f])
-    anim = FuncAnimation(fig, update, frames=len(xs))
-    anim.save(fname, fps=fps)
+        line.set_data(xs[f], ys[f])
+    func_video(fname, fig, update, len(xs), fps=fps, dpi=dpi, destination=destination)
+def lines_video(
+        data,
+        fname,
+        destination: str = '.',
+        ax=None, figsize=(5,5),
+        fps=20, dpi=100
+) -> None:
+    if not ax: fig, ax = plt.subplots(figsize=figsize)
+    fig = ax.get_figure()
+    lines = []
+    for (x, y) in data:
+        line, = ax.plot(x[0], y[0])
+        lines.append(line)
+    def update(i: int) -> None:
+        for (x, y), line in zip(data, lines):
+            line.set_data(x[i], y[i])
+    func_video(fname, fig, update, len(data[0][0]), fps=fps, dpi=dpi, destination=destination)
 def show_video(
     frames: np.ndarray,
     fname: str,
     ax = None,
     norm = 'linear',
+    destination: str = '.',
     fps: int = 30,
+    dpi=100,
     **kwargs
 ):
     # create figure and axis 
-    fig,ax,img = show(frames[0], ax=ax, norm=auto_norm(norm, frames), show=False, **kwargs)
+    if isinstance(norm, str): norm = auto_norm(norm, frames)
+    fig,ax,img = show(frames[0], ax=ax, norm=norm, show=False, **kwargs)
     def update(f: int):
         img.set_array(frames[f])
-    anim = FuncAnimation(fig, update, frames=len(frames))
-    anim.save(fname, fps=fps)
+    func_video(fname, fig, update, len(frames), destination=destination, fps=fps, dpi=dpi)
 def particle_video(
     sim,
     particles: list[str] | int,
+    fname: str,
     background = None,      
     resume: bool = False,
     res: int = None,
@@ -417,13 +460,13 @@ def particle_video(
             zorder = 2
         )
         # execute the loop
-        for i in tqdm(range(i_start, sim.input.niter, res)):
-            pind = i // dnp 
+        def update(i: int, dnp=dnp, dnb=dnb):
+            pind = i * dnp
             line.set_data(sx[pind], sy[pind])
-            if i % dnb == 0:
-                bind = i // dnb 
+            if pind % dnb == 0:
+                bind = pind // dnb 
                 img.set_array(background[bind])
-            plt.savefig(f"{frameDir.path}/{str(i).zfill(zfill)}.png", dpi=dpi)
+        func_video(fname, fig, update, )
 
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
 # >-|===|>                            Decorators                           <|===|-<
