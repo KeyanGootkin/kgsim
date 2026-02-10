@@ -69,7 +69,7 @@ class SimulationGroup(Folder):
         if self.index < len(self):
             i = self.index
             self.index += 1
-            return list(self.simulations.values())[i]
+            return list(self.values())[i]
         else: raise StopIteration
 
     def sort_by(self, key: str) -> None:
@@ -80,3 +80,7 @@ class SimulationGroup(Folder):
     def colorer(self, cmap=cmaps.plasma) -> list: return [cmap(i / (len(self)+.1)) for i in range(len(self))]
     def labeler(self) -> list[str]: return [x.name for x in self.simulations.values()]
     def plotter(self, cmap=cmaps.plasma) -> list[tuple]: return [(l_i, c_i, sim_i) for l_i, c_i, sim_i in zip(self.labeler(), self.colorer(cmap=cmap), self.simulations.values())]
+
+    def items(self): return self.simulations.items()
+    def values(self): return self.simulations.values()
+    def keys(self): return self.simulations.keys()
