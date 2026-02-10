@@ -2,7 +2,7 @@
 # >-|===|>                             Imports                             <|===|-<
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
 #pysim imports
-from pysim.utils import yesno 
+from pysim.utils import yesno, texfraction
 from pysim.parsing import Folder
 from pysim.environment import dHybridRtemplate
 from pysim.fields import ScalarField, VectorField
@@ -188,6 +188,6 @@ class TurbGroup(SimulationGroup):
     
     def labeler(self): return [
         r"$\mathcal{M} = $"+f"{
-            int(x.mach) if x.mach.is_integer() else r"$\frac{"+str(Fraction(x.mach).numerator)+r"}{"+str(Fraction(x.mach).denominator)+"}$"
+            int(x.mach) if x.mach.is_integer() else texfraction(x.mach)
         }" for x in self.simulations.values()
     ]

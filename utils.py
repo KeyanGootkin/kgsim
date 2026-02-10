@@ -5,9 +5,13 @@ import numpy as np
 from contextlib import contextmanager
 from tqdm import tqdm
 import inspect
+from fractions import Fraction
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
 # >-|===|>                            Functions                            <|===|-<
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
+def texfraction(num) -> str: 
+    f = Fraction(str(num))
+    return r"$\frac{" + str(f.numerator) + "}{" + str(f.denominator) + r"}$"
 def where_closest(arr:np.ndarray, x): return np.argmin(np.abs(arr-x))
 def where_between(arr:np.ndarray, low, high): return np.where((arr>=low)&(arr<=high))
 def bin_this(x, y, n_bins=50, func=np.nanmean):
