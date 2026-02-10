@@ -187,7 +187,4 @@ class TurbGroup(SimulationGroup):
         return [cmap(np.log2(m/min(machs))/np.log2((max(machs)+.1)/min(machs))) for m in machs]
     
     def labeler(self): return [
-        r"$\mathcal{M} = $"+f"{
-            int(x.mach) if x.mach.is_integer() else texfraction(x.mach)
-        }" for x in self.simulations.values()
-    ]
+        r"$\mathcal{M} = $"+f"{int(x.mach) if x.mach.is_integer() else texfraction(x.mach)}" for x in self.simulations.values()]
