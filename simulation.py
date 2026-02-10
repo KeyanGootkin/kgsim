@@ -62,6 +62,15 @@ class SimulationGroup(Folder):
     def __repr__(self) -> str: return self.name+'\n'+'-'*20+"\n"+"\n".join([f"{k}: {repr(v)}" for k, v in self.simulations.items()])
     def __len__(self) -> int: return len(self.simulations)
     def __getitem__(self, item): return self.simulations[item]
+    def __iter__(self):
+        self.index = 0
+        return self
+    def __next__(self):
+        if self.index < len(self):
+            i = self.index
+            self.index += 1
+            return list(self.simulations.values())[i]
+        else: raise StopIteration
 
     def sort_by(self, key: str) -> None:
         new_simulations = {v.__dict__[key]: v for k, v in sorted(self.simulations.items(), key = lambda item: item[1].__dict__[key])}
