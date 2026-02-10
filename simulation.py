@@ -2,10 +2,12 @@
 # >-|===|>                             Imports                             <|===|-<
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
 from pysim.utils import yesno
-from pysim.parsing import Folder
+from pysim.parsing import Folder, File
 from pysim.environment import simulationDir
 
 from os.path import isdir
+
+from matplotlib.pyplot import cm as cmaps
 
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
 # >-|===|>                             Classes                             <|===|-<
@@ -53,6 +55,19 @@ class GenericSimulation:
         self.template.copy(self.path)
 
 class SimulationGroup(Folder):
-    def __init__(self, path: str, simtype = GenericSimulation) -> None: 
+    def __init__(self, path: str, simtype = GenericSimulation, **sim_kwds) -> None: 
         Folder.__init__(self, path)
-        self.simulations = {simtype(x) for x in self.children if isdir(x)}
+        self.simulations = {x.split('/')[-1]:simtype(x, **sim_kwds) for x in self.children if isdir(x) and File(x+"/input/input").exists}
+    
+    def __repr__(self) -> str: return self.name+'\n'+'-'*20+"\n"+"\n".join([f"{k}: {repr(v)}" for k, v in self.simulations.items()])
+    def __len__(self) -> int: return len(self.simulations)
+    def __getitem__(self, item): return self.simulations[item]
+
+    def sort_by(self, key: str) -> None:
+        new_simulations = {v.__dict__[key]: v for k, v in sorted(self.simulations.items(), key = lambda item: item[1].__dict__[key])}
+        if len(new_simulations) != len(self.simulations): raise KeyError(f"the simulation value: {key} is not unique in {self.name}, please provide a unique key to sort by.")
+        self.simulations = new_simulations
+
+    def colorer(self, cmap=cmaps.plasma) -> list: return [cmap(i / (len(self)+.1)) for i in range(len(self))]
+    def labeler(self) -> list[str]: return [x.name for x in self.simulations.values()]
+    def plotter(self, cmap=cmaps.plasma) -> list[tuple]: return [(l_i, c_i, sim_i) for l_i, c_i, sim_i in zip(self.labeler(), self.colorer(cmap=cmap), self.simulations.values())]
