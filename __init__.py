@@ -1,5 +1,3 @@
-__version__ = "0.4.0"
-
 from pysim.utils import *
 from pysim.parsing import *
 from pysim.environment import *
