@@ -4,7 +4,13 @@ version = "0.1.3"
 description = "A library to interact with simulations with."
 readme = "README.md"
 requires-python = ">=3.11"
-dependencies = []
+dependencies = [
+    "matplotlib>=3.10.8",
+    "numpy>=2.4.2",
+    "pytest>=9.0.2",
+    "pytest-cov>=7.0.0",
+    "scipy>=1.17.0",
+]
 
 [build-system]
 requires = ["uv_build>=0.10.2,<0.11.0"]
