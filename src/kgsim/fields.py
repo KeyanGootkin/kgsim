@@ -2,9 +2,11 @@
 # >-|===|>                             Imports                             <|===|-<
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
 #pysim imports
-from pysim.parsing import Folder, File
-from pysim.utils import verbose_bar
-from pysim.plotting import show, show_video
+from kgsim.parsing import Folder, File
+from kgsim.utils import verbose_bar
+from kgsim.plotting import show, show_video
+from kgsim.typing import Number, Iterable
+
 #nonpysim imports
 from glob import glob
 import numpy as np
@@ -14,7 +16,7 @@ from os.path import isdir, isfile
 from matplotlib.pyplot import gca
 from matplotlib.axes import Axes
 from matplotlib.cm import plasma as default_cmap
-from keyutils.vectors import Number, Iterable
+
 
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
 # >-|===|>                            Functions                            <|===|-<

@@ -1,4 +1,4 @@
-from pysim.parsing import Folder
+from kgsim.parsing import Folder
 simulationDir = Folder("/Users/keyan/code/data/sims/")
 figDir = videoDir = Folder("./")
 frameDir = Folder("/Users/keyan/code/data/frames/")

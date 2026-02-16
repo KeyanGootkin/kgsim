@@ -2,8 +2,8 @@
 # >-|===|>                             Imports                             <|===|-<
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
 #pysim imports
-from pysim.tristan.tristan import Tristan, TristanParticleSpecies, TristanParticleQuantity
-from pysim.fields import VectorField
+from kgsim.tristan.tristan import Tristan, TristanParticleSpecies, TristanParticleQuantity
+from kgsim.fields import VectorField
 #non-pysim imports
 import numpy as np
 

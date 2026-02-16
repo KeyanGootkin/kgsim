@@ -2,9 +2,9 @@
 # >-|===|>                             Imports                             <|===|-<
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
 #pysim imports
-from pysim.utils import nan_clip, verbose_bar
-from pysim.parsing import File, Folder, ensure_path
-from pysim.environment import frameDir, videoDir
+from kgsim.utils import nan_clip, verbose_bar
+from kgsim.parsing import File, Folder, ensure_path
+from kgsim.environment import frameDir, videoDir
 #nonpysim imports
 import os
 

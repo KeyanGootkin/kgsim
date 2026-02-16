@@ -2,9 +2,9 @@
 # >-|===|>                             Imports                             <|===|-<
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
 #pysim imports
-from pysim.parsing import File, Folder
-from pysim.fields import ScalarField, VectorField
-from pysim.dhybridr.io import dHybridRinput
+from kgsim.parsing import File, Folder
+from kgsim.fields import ScalarField, VectorField
+from kgsim.dhybridr.io import dHybridRinput
 #nonpysim imports
 from scipy.io import FortranFile
 import numpy as np

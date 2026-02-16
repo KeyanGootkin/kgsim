@@ -2,7 +2,7 @@
 # >-|===|>                             Imports                             <|===|-<
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
 #pysim imports
-from pysim.utils import yesno
+from kgsim.utils import yesno
 #nonpysim imports
 import numpy as np
 from glob import glob 

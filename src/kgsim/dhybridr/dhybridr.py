@@ -2,16 +2,16 @@
 # >-|===|>                             Imports                             <|===|-<
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
 #pysim imports
-from pysim.utils import yesno, texfraction
-from pysim.parsing import Folder
-from pysim.environment import dHybridRtemplate
-from pysim.fields import ScalarField, VectorField
-from pysim.simulation import GenericSimulation, SimulationGroup
-from pysim.particles import Species, Particle
-from pysim.plotting import show
-from pysim.dhybridr.io import dHybridRinput, dHybridRout
-from pysim.dhybridr.initializer import dHybridRinitializer, TurbInit, dHybridRconfig
-from pysim.dhybridr.anvil_submit import AnvilSubmitScript
+from kgsim.utils import yesno, texfraction
+from kgsim.parsing import Folder
+from kgsim.environment import dHybridRtemplate
+from kgsim.fields import ScalarField, VectorField
+from kgsim.simulation import GenericSimulation, SimulationGroup
+from kgsim.particles import Species, Particle
+from kgsim.plotting import show
+from kgsim.dhybridr.io import dHybridRinput, dHybridRout
+from kgsim.dhybridr.initializer import dHybridRinitializer, TurbInit, dHybridRconfig
+from kgsim.dhybridr.anvil_submit import AnvilSubmitScript
 #nonpysim imports
 from typing import Callable
 from fractions import Fraction

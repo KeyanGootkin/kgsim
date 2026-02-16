@@ -2,10 +2,10 @@
 # >-|===|>                             Imports                             <|===|-<
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
 #pysim imports
-from pysim.parsing import Folder
-from pysim.fields import ScalarField, VectorField
-from pysim.simulation import GenericSimulation
-from pysim.dhybridr.io import InputParameter
+from kgsim.parsing import Folder
+from kgsim.fields import ScalarField, VectorField
+from kgsim.simulation import GenericSimulation
+from kgsim.dhybridr.io import InputParameter
 #non-pysim imports
 from glob import glob
 import numpy as np

@@ -2,8 +2,8 @@
 # >-|===|>                             Imports                             <|===|-<
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
 #pysim imports
-from pysim.parsing import File
-from pysim.environment import dHybridRtemplate
+from kgsim.parsing import File
+from kgsim.environment import dHybridRtemplate
 #nonpysim imports
 import numpy as np
 from datetime import datetime, date

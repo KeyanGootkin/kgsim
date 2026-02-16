@@ -1,9 +1,9 @@
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
 # >-|===|>                             Imports                             <|===|-<
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
-from pysim.utils import yesno
-from pysim.parsing import Folder, File
-from pysim.environment import simulationDir
+from kgsim.utils import yesno
+from kgsim.parsing import Folder, File
+from kgsim.environment import simulationDir
 
 from os.path import isdir
 

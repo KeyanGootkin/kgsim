@@ -2,11 +2,11 @@
 # >-|===|>                             Imports                             <|===|-<
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
 #pysim imports
-from pysim.utils import yesno 
-from pysim.parsing import Folder
-from pysim.fields import ScalarField, VectorField
-from pysim.simulation import GenericSimulation
-from pysim.athena.athena_read import athdf
+from kgsim.utils import yesno 
+from kgsim.parsing import Folder
+from kgsim.fields import ScalarField, VectorField
+from kgsim.simulation import GenericSimulation
+from kgsim.athena.athena_read import athdf
 #non-pysim imports
 from glob import glob 
 import numpy as np
