@@ -15,14 +15,13 @@ from kgsim.dhybridr.anvil_submit import AnvilSubmitScript
 #nonpysim imports
 from typing import Callable
 from fractions import Fraction
-
-from matplotlib.pyplot import cm as cmaps
-
-import numpy as np 
-from h5py import File as h5File
 from os import system
 from os.path import isdir
 from glob import glob
+
+from matplotlib.pyplot import cm as cmaps
+import numpy as np 
+from h5py import File as h5File
 
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
 # >-|===|>                           Definitions                           <|===|-<
