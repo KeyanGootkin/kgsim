@@ -1,13 +1,11 @@
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
 # >-|===|>                             Imports                             <|===|-<
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
-#pysim imports
 from kgsim.utils import nan_clip, verbose_bar
-from kgsim.parsing import File, Folder, ensure_path
 from kgsim.environment import frameDir, videoDir
-#nonpysim imports
-import os
 
+from kbasic.parsing import File, Folder, ensure_path
+import os
 from functools import wraps
 from typing import Callable
 from glob import glob
@@ -386,8 +384,12 @@ def lines_video(
         ax=None, figsize=(5,5),
         fps=20, dpi=100
 ) -> None:
-    if not ax: fig, ax = plt.subplots(figsize=figsize)
-    fig = ax.get_figure()
+    data = np.array(data)
+    if not ax: 
+        fig, ax = plt.subplots(figsize=figsize)
+        ax.set_xlim(np.nanmin(data[:, 0]), np.nanmax(data[:, 0]))
+        ax.set_ylim(np.nanmin(data[:, 1]), np.nanmax(data[:, 1]))
+    else: fig = ax.get_figure()
     lines = []
     for (x, y) in data:
         line, = ax.plot(x[0], y[0])

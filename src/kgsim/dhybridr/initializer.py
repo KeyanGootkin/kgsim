@@ -1,11 +1,10 @@
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
 # >-|===|>                             Imports                             <|===|-<
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
-#pysim imports
-from kgsim.parsing import File, Folder
 from kgsim.fields import ScalarField, VectorField
 from kgsim.dhybridr.io import dHybridRinput
-#nonpysim imports
+
+from kbasic.parsing import File, Folder
 from scipy.io import FortranFile
 import numpy as np
 from numpy import pi

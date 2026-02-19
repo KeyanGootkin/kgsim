@@ -1,9 +1,7 @@
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
 # >-|===|>                             Imports                             <|===|-<
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
-#pysim imports
 from kgsim.utils import texfraction
-from kgsim.parsing import Folder
 from kgsim.environment import dHybridRtemplate
 from kgsim.fields import ScalarField, VectorField
 from kgsim.simulation import GenericSimulation, SimulationGroup
@@ -12,7 +10,8 @@ from kgsim.plotting import show
 from kgsim.dhybridr.io import dHybridRinput, dHybridRout
 from kgsim.dhybridr.initializer import dHybridRinitializer, TurbInit, dHybridRconfig
 from kgsim.dhybridr.anvil_submit import AnvilSubmitScript
-#nonpysim imports
+
+from kbasic.parsing import Folder
 from kbasic.user_input import yesno
 from os import system
 from os.path import isdir

@@ -1,12 +1,10 @@
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
 # >-|===|>                             Imports                             <|===|-<
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
-#pysim imports
-from kgsim.parsing import Folder, File
 from kgsim.utils import verbose_bar
 from kgsim.plotting import show, show_video
 
-#nonpysim imports
+from kbasic.parsing import Folder, File
 from kbasic.typing import Number, Iterable
 from glob import glob
 import numpy as np
