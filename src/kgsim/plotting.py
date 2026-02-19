@@ -395,7 +395,7 @@ def lines_video(
     def update(i: int) -> None:
         for (x, y), line in zip(data, lines):
             line.set_data(x[i], y[i])
-    func_video(fname, fig, update, len(data[0][0]), fps=fps, dpi=dpi, destination=destination)
+    func_video(fname, fig, update, min([len(data[i][0]) for i in range(len(data))]), fps=fps, dpi=dpi, destination=destination)
 def show_video(
     frames: np.ndarray,
     fname: str,
