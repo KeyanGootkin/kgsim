@@ -120,6 +120,9 @@ class dHybridR(GenericSimulation):
                 self.corehours_charged: float = self.runtime * self.ncores_charged
         self.restartDir = Folder(self.path+"/Restart")
     def __repr__(self) -> str: return self.name
+    def __len__(self) -> int:
+        if self.output.exists: return len(self.density)
+        else: return 0
     def create(self) -> None:
         self.template.copy(self.path)
         system(f"chmod 755 {self.path}/dHybridR")

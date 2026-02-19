@@ -5,9 +5,9 @@
 from kgsim.parsing import Folder, File
 from kgsim.utils import verbose_bar
 from kgsim.plotting import show, show_video
-from kgsim.typing import Number, Iterable
 
 #nonpysim imports
+from kbasic.typing import Number, Iterable
 from glob import glob
 import numpy as np
 from h5py import File as h5File
