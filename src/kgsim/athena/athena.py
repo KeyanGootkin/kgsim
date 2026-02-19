@@ -1,8 +1,7 @@
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
 # >-|===|>                             Imports                             <|===|-<
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
-#pysim imports
-from kgsim.utils import yesno 
+#pysim imports 
 from kgsim.parsing import Folder
 from kgsim.fields import ScalarField, VectorField
 from kgsim.simulation import GenericSimulation

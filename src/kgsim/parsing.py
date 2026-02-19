@@ -1,9 +1,7 @@
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
 # >-|===|>                             Imports                             <|===|-<
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
-#pysim imports
-from kgsim.utils import yesno
-#nonpysim imports
+from kbasic.user_input import yesno
 import numpy as np
 from glob import glob 
 from shutil import copy, move, copytree, rmtree

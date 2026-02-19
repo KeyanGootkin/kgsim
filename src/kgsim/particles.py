@@ -1,3 +1,6 @@
+# !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
+# >-|===|>                             Classes                             <|===|-<
+# !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
 class Species:
     def __init__(
             self,
@@ -12,7 +15,6 @@ class Species:
         self.qtm = q/m # charge to mass ratio 
         
     def __repr__(self): return self.name
-
 class Particle:
     def __init__(
             self,

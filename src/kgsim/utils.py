@@ -6,6 +6,7 @@ from contextlib import contextmanager
 from tqdm import tqdm
 import inspect
 from fractions import Fraction
+
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
 # >-|===|>                            Functions                            <|===|-<
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
@@ -47,29 +48,6 @@ def progress_bar(iterator, **kwargs):
             yield x
 def verbose_bar(iterator, verbose, **kwargs):
     return progress_bar(iterator, **kwargs) if verbose else iterator
-def yesno(prompt: str):
-    """
-    prompt the user to either reply yes or no
-    :param prompt: the yes/no question to be answered
-    :return: True if yes False if no
-    """
-    response = input(prompt).lower()
-    if 'y' in response and not 'n' in response:
-        return True
-    elif 'n' in response and not 'y' in response:
-        return False
-    else:
-        def retry_yesno():
-            retry_prompt = "Sorry I couldn't read that please respond with yes or no\n" + prompt
-            retry_response = input(retry_prompt).lower()
-            if 'y' in retry_response and not 'n' in retry_response:
-                return True
-            elif 'n' in retry_response and not 'y' in retry_response:
-                return False
-            else:
-                raise ValueError("need a response with either y or n in it.")
-
-        return retry_yesno()
 def nan_clip(*args):
     mask = ~np.any([np.isnan(a) for a in args], axis=0)
     nanless_args = tuple([np.array(a)[mask] for a in args])

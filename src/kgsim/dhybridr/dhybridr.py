@@ -2,7 +2,7 @@
 # >-|===|>                             Imports                             <|===|-<
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
 #pysim imports
-from kgsim.utils import yesno, texfraction
+from kgsim.utils import texfraction
 from kgsim.parsing import Folder
 from kgsim.environment import dHybridRtemplate
 from kgsim.fields import ScalarField, VectorField
@@ -13,8 +13,7 @@ from kgsim.dhybridr.io import dHybridRinput, dHybridRout
 from kgsim.dhybridr.initializer import dHybridRinitializer, TurbInit, dHybridRconfig
 from kgsim.dhybridr.anvil_submit import AnvilSubmitScript
 #nonpysim imports
-from typing import Callable
-from fractions import Fraction
+from kbasic.user_input import yesno
 from os import system
 from os.path import isdir
 from glob import glob
@@ -40,6 +39,10 @@ def extract_energy(file_name: str) -> tuple:
         dlne = np.diff(lne)[0]
         E = np.exp(lne)
         return E, fE, dlne
+def iters(simulation) -> list[int]:
+    return [int(fn[-11:-3]) for fn in simulation.density.file_names]
+def times(simulation) -> list[float]:
+    return list(np.array(iters(simulation)).astype(float) * simulation.dt)
 
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
 # >-|===|>                             Classes                             <|===|-<
@@ -103,16 +106,16 @@ class dHybridR(GenericSimulation):
         GenericSimulation.__init__(self, path, caching=caching, verbose=verbose, template=template)
         #setup input, output, and restart folders
         self.parse_input()
-        self.outputDir = Folder(self.path+"/Output")
-        if not self.outputDir.exists and verbose:
+        self.output = Folder(self.path+"/Output")
+        if not self.output.exists and verbose:
             if yesno("There is no output, would you like to run this simulation?\n"): 
                 self.run()
-        elif self.outputDir.exists: 
+        elif self.output.exists: 
             self.parse_output()
             self.ncores: int = int(np.prod(self.input.node_number))
             self.ncores_charged: int = self.ncores + self.ncores % 128
-            if self.outFile.exists:
-                self.runtime: float = self.outFile.runtime #run time as calculated from out file, in hours
+            if self.out.exists:
+                self.runtime: float = self.out.runtime #run time as calculated from out file, in hours
                 self.corehours: float = self.runtime * np.prod(self.ncores)
                 self.corehours_charged: float = self.runtime * self.ncores_charged
         self.restartDir = Folder(self.path+"/Restart")
@@ -132,7 +135,7 @@ class dHybridR(GenericSimulation):
         submit_script.write()
         system(f"sh {submit_script.path}")
     def parse_output(self) -> None:
-        self.outFile = dHybridRout(self.path+"/out")
+        self.out = dHybridRout(self.path+"/out")
         kwargs = {'caching':self.caching, 'verbose':self.verbose, 'parent':self}
         self.B       = VectorField(self.path + "/Output/Fields/Magnetic/Total/", name="magnetic", latex="B", **kwargs)
         self.E       = VectorField(self.path + "/Output/Fields/Electric/Total/", name="electric", latex="E", **kwargs)
@@ -155,6 +158,8 @@ class dHybridR(GenericSimulation):
         self.dlne = np.vstack(self.dlne) 
         if self.input.sp01.track_dump:
             self.sp01 = dHybridRspecies(1, self)
+        self.iter = iters(self)
+        self.time = times(self)
 
 class TurbSim(dHybridR):
     def __init__(
