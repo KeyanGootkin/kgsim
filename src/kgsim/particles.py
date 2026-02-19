@@ -19,9 +19,9 @@ class Particle:
     def __init__(
             self,
             species: Species,
-            index: int
+            id: int
     ):
         self.species = species 
-        self.index = index 
+        self.id = id
         
-    def __repr__(self): return f"{self.species}: {self.index}"
+    def __repr__(self): return f"PARTICLE {self.id} ({self.species})"

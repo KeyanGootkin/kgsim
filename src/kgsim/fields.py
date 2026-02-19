@@ -1,9 +1,8 @@
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
 # >-|===|>                             Imports                             <|===|-<
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
-from kgsim.utils import verbose_bar
-from kgsim.plotting import show, show_video
-
+from kplot import show, show_video
+from kbasic.array import verbose_bar
 from kbasic.parsing import Folder, File
 from kbasic.typing import Number, Iterable
 from glob import glob
@@ -57,7 +56,7 @@ class ScalarField:
     * ndims - int 
         the number of dimensions in the output arrays
 
-    ===FILE MODE===
+    ===FILE MODE=== 
     * path - str
         path containing field files 
     * file_names - list[str]
