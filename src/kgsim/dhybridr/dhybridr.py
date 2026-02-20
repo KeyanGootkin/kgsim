@@ -1,8 +1,7 @@
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
 # >-|===|>                             Imports                             <|===|-<
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
-from kgsim.utils import texfraction
-from kgsim.environment import dHybridRtemplate
+from kgsim.environment import dHybridRtemplate, frameDir
 from kgsim.fields import ScalarField, VectorField
 from kgsim.simulation import GenericSimulation, SimulationGroup
 from kgsim.particles import Species, Particle
@@ -10,7 +9,8 @@ from kgsim.dhybridr.io import dHybridRinput, dHybridRout
 from kgsim.dhybridr.initializer import dHybridRinitializer, TurbInit, dHybridRconfig
 from kgsim.dhybridr.anvil_submit import AnvilSubmitScript
 
-from kplot import show
+from kplot import show, func_video
+from kbasic.Tex import texfraction
 from kbasic.parsing import Folder
 from kbasic.user_input import yesno
 from os import system
@@ -42,6 +42,68 @@ def iters(simulation) -> list[int]:
     return [int(fn[-11:-3]) for fn in simulation.density.file_names]
 def times(simulation) -> list[float]:
     return list(np.array(iters(simulation)).astype(float) * simulation.dt)
+def particle_video(
+    sim,
+    particles: list[str] | int,
+    fname: str,
+    background = None,      
+    resume: bool = False,
+    res: int = None,
+    zfill: int = 10,
+    dpi: int = 250,
+    # paticle plotting keywords
+    color = 'red',
+    marker='.',
+    ms=10, 
+    # assume the rest are keywords for the show function
+    **kwds
+):
+    # check species
+    assert sim.input.num_species == 1, "only one species is implemented rn :-("
+    # check the time resolution is valid
+    if not res: res = sim.input.sp01.track_nstore
+    dnp = sim.input.sp01.track_nstore
+    dnb = sim.input.ndump
+    assert (dnp % res == 0) & (res % dnb == 0), "your resolution must be an integer multiple of track_nstore and ndump must be an integer multiple of res."
+    # handle the resuming
+    if not resume: 
+        system(f'rm {frameDir.path}/*')
+        i_start = 0
+    else:
+        last_file = sorted(frameDir.children)[-1]
+        last_iter = int(last_file[:-4])
+        i_start = last_iter + res
+    # find the file
+    fn = sim.path+"/Output/Tracks/Sp01/track_Sp01.h5"
+    with h5File(fn) as file:
+        # extract particle tracks based on the particles argument
+        tags = np.array(list(file.keys()))
+        match particles:
+            case [str(x), ]: selected = particles 
+            case int(x): selected = np.random.choice(tags, size=x, replace=False)
+        sx, sy = np.array([file[t]['x1'] for t in selected]).T, np.array([file[t]['x2'] for t in selected]).T 
+        # setup background
+        if not background: background = sim.density
+        # initialize plots
+        fig,ax,img = show(
+            background[0], 
+            x=range(0, sim.input.boxsize[0], sim.dx), y=range(0, sim.input.boxsize[1], sim.dy), 
+            zorder=1,
+            **kwds
+        )
+        line, = ax.plot(
+            sx[0], sy[0], 
+            ls='None', color=color, marker=marker, ms=ms,
+            zorder = 2
+        )
+        # execute the loop
+        def update(i: int, dnp=dnp, dnb=dnb):
+            pind = i * dnp
+            line.set_data(sx[pind], sy[pind])
+            if pind % dnb == 0:
+                bind = pind // dnb 
+                img.set_array(background[bind])
+        func_video(fname, fig, update, )
 
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
 # >-|===|>                             Classes                             <|===|-<
@@ -69,7 +131,6 @@ class dHybridRparticle(Particle):
         for i in range(0, sim.input.niter, di):
             pind = i // di 
             img.set
-
 class dHybridRspecies(Species):
     def __init__(self, species_number: int, parent):
         self.n = self.number = self.sp_num = species_number
@@ -87,7 +148,6 @@ class dHybridRspecies(Species):
             self.loaded = True 
 
     def sample(self, N, load=False): return np.array([dHybridRparticle(t, self) for t in np.random.choice(self.tags, size=N, load=load)])
-
 class dHybridR(GenericSimulation):
     """
     A simulation class to interact with dHybridR simulations in python
@@ -120,7 +180,8 @@ class dHybridR(GenericSimulation):
         self.restartDir = Folder(self.path+"/Restart")
     def __repr__(self) -> str: return self.name
     def __len__(self) -> int:
-        if self.output.exists: return len(self.density)
+        if self.output.exists: 
+            return len(self.density)
         else: return 0
     def create(self) -> None:
         self.template.copy(self.path)
@@ -162,7 +223,6 @@ class dHybridR(GenericSimulation):
             self.sp01 = dHybridRspecies(1, self)
         self.iter = iters(self)
         self.time = times(self)
-
 class TurbSim(dHybridR):
     def __init__(
             self, 
@@ -175,11 +235,9 @@ class TurbSim(dHybridR):
         dHybridR.__init__(self, path, caching=caching, verbose=verbose, template=template, compressed=compressed)
         self.config = dHybridRconfig(self, mode='turb')
         self.initializer = TurbInit(self)
-
 class dHybridRgroup(SimulationGroup):
     def __init__(self, path, **sim_kwds):
         SimulationGroup.__init__(self, path, simtype=dHybridR, **sim_kwds)
-
 class TurbGroup(SimulationGroup):
     def __init__(self, path, sort='mach', verbose=True, **sim_kwds):
         SimulationGroup.__init__(self, path, simtype=TurbSim, **sim_kwds)

@@ -7,8 +7,8 @@ from kbasic.parsing import File, Folder
 # >-|===|>                           Definitions                           <|===|-<
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
 thisFile = File(__file__)
-pysimDir = Folder(thisFile.grandparent) # Where the package lives
-dHybridRtemplate = pysimDir + "/templates/dHybridR/" # where the base dHybridR template is
+pysimDir: Folder = thisFile.grandparent # Where the package lives
+dHybridRtemplate: Folder = pysimDir + "/templates/dHybridR/" # where the base dHybridR template is
 # parse what kinda computer is running this
 isAnvil: bool = Folder("/anvil").exists
 isPC: bool = thisFile.path.lower().startswith("/users")

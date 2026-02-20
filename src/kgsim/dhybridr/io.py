@@ -281,6 +281,7 @@ class dHybridRout(File):
             self.runtime: float = self.dt.seconds / 60. / 60.
 
     def read(self):
+        File.read(self)
         self.start = datetime.now()
         self.end = datetime.now()
         for i,li in enumerate(self.lines):

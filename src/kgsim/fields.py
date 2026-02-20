@@ -2,7 +2,7 @@
 # >-|===|>                             Imports                             <|===|-<
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
 from kplot import show, show_video
-from kbasic.array import verbose_bar
+from kbasic.bar import verbose_bar
 from kbasic.parsing import Folder, File
 from kbasic.typing import Number, Iterable
 from glob import glob
@@ -85,8 +85,8 @@ class ScalarField:
         self.latex: str = latex
         self.verbose: bool = verbose
         self.parent = parent
-        if parent:
-            self.di = tuple(np.array(parent.input.boxsize, dtype=float) / np.array(parent.input.ncells, dtype=int))
+        # if parent:
+        #     self.di = tuple(np.array(parent.input.boxsize, dtype=float) / np.array(parent.input.ncells, dtype=int))
         #setup cache
         self.caching: bool = caching
         self.cache: dict = {}
@@ -202,7 +202,8 @@ class VectorField:
         self.name = name
         self.latex = latex 
         self.parent = parent
-        if parent: self.dx, self.dy = parent.dx, parent.dy
+        # if parent: 
+        #     self.dx, self.dy = parent.dx, parent.dy
         self.verbose = verbose 
         self.caching = caching
         child_kwargs = {'parent':parent, 'verbose':verbose, 'caching':caching}
