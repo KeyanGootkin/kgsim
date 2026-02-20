@@ -1,6 +1,6 @@
 [project]
 name = "kgsim"
-version = "0.1.15"
+version = "0.1.16"
 description = "A library to interact with simulations with."
 readme = "README.md"
 requires-python = ">=3.11"

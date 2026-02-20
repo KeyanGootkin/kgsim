@@ -12,7 +12,6 @@ from collections.abc import Iterable
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
 # >-|===|>                            Functions                            <|===|-<
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
-
 def parse_config_value(val:str):
     """take a string representing the value of a configuration parameter and figure out what python type it should be. 
 
