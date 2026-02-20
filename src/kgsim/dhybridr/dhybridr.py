@@ -223,32 +223,6 @@ class dHybridR(GenericSimulation):
             self.sp01 = dHybridRspecies(1, self)
         self.iter = iters(self)
         self.time = times(self)
-class TurbSim(dHybridR):
-    def __init__(
-            self, 
-            path: str,
-            caching: bool = False,
-            verbose: bool = False,
-            template: Folder = dHybridRtemplate,
-            compressed: bool = False
-        ) -> None:
-        dHybridR.__init__(self, path, caching=caching, verbose=verbose, template=template, compressed=compressed)
-        self.config = dHybridRconfig(self, mode='turb')
-        self.initializer = TurbInit(self)
 class dHybridRgroup(SimulationGroup):
     def __init__(self, path, **sim_kwds):
         SimulationGroup.__init__(self, path, simtype=dHybridR, **sim_kwds)
-class TurbGroup(SimulationGroup):
-    def __init__(self, path, sort='mach', verbose=True, **sim_kwds):
-        SimulationGroup.__init__(self, path, simtype=TurbSim, **sim_kwds)
-        try: 
-            self.sort_by(sort)
-        except KeyError: 
-            if verbose: print(f"could not sort by {sort}, using default order...")
-
-    def colorer(self, cmap=cmaps.plasma): 
-        machs = [x.mach for x in self.simulations.values()]
-        return [cmap(np.log2(m/min(machs))/np.log2((max(machs)+.1)/min(machs))) for m in machs]
-    
-    def labeler(self): return [
-        r"$\mathcal{M} = $"+f"{int(x.mach) if x.mach.is_integer() else texfraction(x.mach)}" for x in self.simulations.values()]
