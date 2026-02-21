@@ -1,8 +1,7 @@
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
 # >-|===|>                             Imports                             <|===|-<
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
-from kgsim.environment import dHybridRtemplate
-
+from kbasic.environment import dHybridRtemplate
 from kbasic.parsing import File
 import numpy as np
 from datetime import datetime, date

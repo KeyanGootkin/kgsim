@@ -1,7 +1,6 @@
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
 # >-|===|>                             Imports                             <|===|-<
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
-from kgsim.environment import dHybridRtemplate, frameDir
 from kgsim.fields import ScalarField, VectorField
 from kgsim.simulation import GenericSimulation, SimulationGroup
 from kgsim.particles import Species, Particle
@@ -10,6 +9,7 @@ from kgsim.dhybridr.initializer import dHybridRinitializer, TurbInit, dHybridRco
 from kgsim.dhybridr.anvil_submit import AnvilSubmitScript
 
 from kplot import show, func_video
+from kbasic.environment import dHybridRtemplate, frameDir
 from kbasic.Tex import texfraction
 from kbasic.parsing import Folder
 from kbasic.user_input import yesno
