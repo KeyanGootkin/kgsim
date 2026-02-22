@@ -5,18 +5,49 @@ from kgsim.simulation import SimulationGroup
 from kgsim.dhybridr.initializer import dHybridRinitializer, dHybridRconfig, dHybridRSnapshot
 from kgsim.dhybridr.dhybridr import dHybridR
 
-from kbasic.environment import dHybridRtemplate
-from kbasic.parsing import File, Folder
-from kbasic.Tex import texfraction
-from typing import Iterable
+from kbasic import dHybridRtemplate, Folder, texfraction, where_between, progress_bar
 
-import numpy as np
+import numpy as np 
 from matplotlib.pyplot import cm
+from scipy.optimize import curve_fit
 
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
 # >-|===|>                            Functions                            <|===|-<
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
+line = lambda x, m, b: m*x+b
 def field_dot(A: np.ndarray, B: np.ndarray) -> np.ndarray: return np.sum(A * B, axis=0)
+def efficiency(E, f, high_energy_threshold):
+    total_energy = sum(E[:-1]*f[:-1]*np.diff(np.log(E)))
+    non_thermal_energy = sum(E[high_energy_threshold:]*f[high_energy_threshold:]*np.diff(np.log(E))[high_energy_threshold-1:])
+    return non_thermal_energy / total_energy
+def non_thermal_slope(E, f, mach):
+    fitting_zone = where_between(E, 5*mach**2, 10*mach**2)
+    E = E[fitting_zone]
+    f = f[fitting_zone]
+    [slope, b], pcov = curve_fit(line, np.log10(E), np.log10(f/E))
+    return slope, b
+def S(p: int, u: np.ndarray, l: int, sample='all', verbose=True):
+    """
+    Compute structure function of power p, of field u, at lag l
+    S_p(u, l) = <(u(x) - u(x + l))^p>
+    p: int - order of structure function
+    u: Array - field to take structure function of
+    l: int - lag, i.e. how many pixels away should the function look
+    """
+    (Nx, Ny) = u.shape 
+    assert l < min(u.shape), f"l ({l}) is larger than smallest dimension ({min(u.shape)})"
+    grid = np.mgrid[-Nx//2:Nx//2, -Ny//2:Ny//2]
+    grid = np.hypot(grid[0], grid[1])
+    grid = np.where(grid//1 == l, True, False)
+    in_annulus = lambda i, j: np.roll(grid, (i - Nx//2, j - Ny//2), axis=(0,1))
+    # for some reason this needs to be transposed
+    return np.array([
+        [
+            np.mean(
+                (u[i, j] - u[in_annulus(i, j)]) ** p
+            ) for i in np.arange(Nx)
+        ] for j in progress_bar(np.arange(Ny))
+    ]).T
 
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
 # >-|===|>                             Classes                             <|===|-<
