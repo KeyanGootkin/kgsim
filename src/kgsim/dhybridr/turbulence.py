@@ -2,11 +2,13 @@
 # >-|===|>                             Imports                             <|===|-<
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
 from kgsim.simulation import SimulationGroup
+from kgsim.templates import dHybridRtemplate
 from kgsim.dhybridr.initializer import dHybridRinitializer, dHybridRconfig, dHybridRSnapshot
 from kgsim.dhybridr.dhybridr import dHybridR
 
-from kbasic import dHybridRtemplate, Folder, texfraction, where_between, progress_bar
+from kbasic import Folder, texfraction, where_between, progress_bar
 
+from collections.abc import Iterable
 import numpy as np 
 from matplotlib.pyplot import cm
 from scipy.optimize import curve_fit

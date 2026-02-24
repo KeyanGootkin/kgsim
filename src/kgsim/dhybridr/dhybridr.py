@@ -5,11 +5,12 @@ from kgsim.fields import ScalarField, VectorField
 from kgsim.simulation import GenericSimulation, SimulationGroup
 from kgsim.particles import Species, Particle
 from kgsim.dhybridr.io import dHybridRinput, dHybridRout
-from kgsim.dhybridr.initializer import dHybridRinitializer, TurbInit, dHybridRconfig
+from kgsim.dhybridr.initializer import dHybridRinitializer
 from kgsim.dhybridr.anvil_submit import AnvilSubmitScript
+from kgsim.templates import dHybridRtemplate
 
 from kplot import show, func_video
-from kbasic.environment import dHybridRtemplate, frameDir
+from kbasic.environment import frameDir
 from kbasic.Tex import texfraction
 from kbasic.parsing import Folder
 from kbasic.user_input import yesno

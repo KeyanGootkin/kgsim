@@ -3,11 +3,11 @@
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
 from kgsim.fields import ScalarField, VectorField
 
-from kbasic.parsing import File, Folder
+from kbasic.parsing import File
 from scipy.io import FortranFile
 import numpy as np
 from numpy import pi
-from collections.abc import Iterable
+
 
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
 # >-|===|>                            Functions                            <|===|-<

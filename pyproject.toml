@@ -1,7 +1,10 @@
 [project]
 name = "kgsim"
-version = "0.1.16"
+version = "0.1.22"
 description = "A library to interact with simulations with."
+authors = [
+  { name="Keyan Gootkin", email="keyangootkin@gmail.com" },
+]
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
