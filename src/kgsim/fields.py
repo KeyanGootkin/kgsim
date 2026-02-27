@@ -345,7 +345,7 @@ class VectorField:
                 self.parallel = self.y 
                 self.perpendicular = self.x, self.z 
             case 'z':
-                self.parallel = self.z 
+                self.parallel = None if not hasattr(self, 'z') else self.z
                 self.perpendicular = self.x, self.y 
     def movie(self, mode='mag', norm='none', cmap=default_cmap, **kwrg) -> None:
         match mode.lower():
@@ -374,11 +374,12 @@ class VectorField:
         if not ax: ax = gca()
         match x, y:
             case None, None:
-                dx = int(self.x.shape[1] // density)
-                x = np.arange(0, self.x.shape[1], dx)
-                dy = int(self.y.shape[0] // density)
-                y = np.arange(0, self.x.shape[0], dy)
+                dx = int(self.x[0].shape[1] // density)
+                x = np.arange(0, self.x[0].shape[1], dx)
+                dy = int(self.y[0].shape[0] // density)
+                y = np.arange(0, self.x[0].shape[0], dy)
         # plot data
+        print(dx, dy)
         if not transpose:
             ax.quiver(x, y, self.y[ind][::dy,::dx].T, self.x[ind][::dy,::dx].T, **kwargs)
         else: 
@@ -391,7 +392,7 @@ class NablaOperator:
         return cls.__ins
     def parse_grid_di(self, Field, di=None) -> tuple:
         match di:
-            case _ if type(di) in Iterable.types: return tuple(di)
+            case Iterable(): return tuple(di)
             case _ if type(di) in Number.types: return (di, di, di) 
             case None:
                 match Field:
