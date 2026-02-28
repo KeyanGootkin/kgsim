@@ -214,8 +214,8 @@ class dHybridR(GenericSimulation):
         self.dlne = np.vstack(self.dlne) 
         if self.input.sp01.track_dump:
             self.sp01 = dHybridRspecies(1, self)
-        self.iter = iters(self)
-        self.time = times(self)
+        self.iter = np.array(iters(self))
+        self.time = np.array(times(self))
 class dHybridRgroup(SimulationGroup):
     def __init__(self, path, **sim_kwds):
         SimulationGroup.__init__(self, path, simtype=dHybridR, **sim_kwds)

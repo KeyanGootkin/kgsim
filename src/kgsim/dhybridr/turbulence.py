@@ -98,10 +98,8 @@ class TurbInit(dHybridRinitializer):
 
                 if not self.simulation.compressed:
                     l = self.input.niter if not self.simulation.output.exists else len(self.simulation.B)*self.input.ndump
-                    self.simulation.time = np.arange(0, l, self.input.ndump) * self.input.dt
                     self.simulation.tau = self.simulation.time * max(self.mach if isinstance(self.mach, Iterable) else [self.mach]) / (max(self.input.boxsize))
                 elif self.simulation.compressed:
-                    self.simulation.time = np.array([int(x[-11:-3]) for x in self.simulation.density.file_names]) * self.simulation.input.dt
                     self.simulation.tau = self.simulation.time * max(self.mach if isinstance(self.mach, Iterable) else [self.mach]) / (max(self.input.boxsize))
                 # if "peak_jz" in self.config.params: 
                 #     self.simulation.peak_jz_ind = int(self.config.peak_jz)
@@ -138,10 +136,8 @@ class TurbInit(dHybridRinitializer):
                 #set times
                 if not self.simulation.compressed:
                     l = self.input.niter if not self.simulation.output.exists else len(self.simulation.B)*self.input.ndump
-                    self.simulation.time = np.arange(0, l, self.input.ndump) * self.input.dt
                     self.simulation.tau = self.simulation.time * max(self.mach if isinstance(self.mach, Iterable) else [self.mach]) / (max(self.input.boxsize))
                 elif self.simulation.compressed:
-                    self.simulation.time = np.array([int(x[-11:-3]) for x in self.simulation.density.file_names]) * self.simulation.input.dt
                     self.simulation.tau = self.simulation.time * max(self.mach if isinstance(self.mach, Iterable) else [self.mach]) / (max(self.input.boxsize))
                 if "peak_jz" in self.config.params: 
                     self.simulation.peak_jz_ind = int(self.config.peak_jz)
