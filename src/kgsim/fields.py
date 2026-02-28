@@ -179,7 +179,11 @@ class ScalarField:
         self.shape = array.shape
         self.ndims = len(self.shape)
 
-    def show(self, item:int, **kwargs) -> None: show(self[item],**kwargs)
+    def show(self, item:int, **kwargs) -> None: 
+        if hasattr(self.parent, 'dx'):
+            x_ticks = np.arange(0, self.parent.input.boxsize[0], self.parent.dx)
+            y_ticks = np.arange(0, self.parent.input.boxsize[1], self.parent.dy)
+        show(self[item], x=x_ticks, y=y_ticks, **kwargs)
     
     def movie(self, norm='none', cmap=default_cmap, alter_func=None,**kwrg) -> None:
         @show_video(name=self.name, latex=self.latex, norm=norm, cmap=cmap)

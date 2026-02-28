@@ -48,7 +48,6 @@ def particle_video(
     particles: list[str] | int,
     fname: str,
     background = None,      
-    resume: bool = False,
     res: int = None,
     zfill: int = 10,
     dpi: int = 250,
@@ -66,14 +65,6 @@ def particle_video(
     dnp = sim.input.sp01.track_nstore
     dnb = sim.input.ndump
     assert (dnp % res == 0) & (res % dnb == 0), "your resolution must be an integer multiple of track_nstore and ndump must be an integer multiple of res."
-    # handle the resuming
-    if not resume: 
-        system(f'rm {frameDir.path}/*')
-        i_start = 0
-    else:
-        last_file = sorted(frameDir.children)[-1]
-        last_iter = int(last_file[:-4])
-        i_start = last_iter + res
     # find the file
     fn = sim.path+"/Output/Tracks/Sp01/track_Sp01.h5"
     with h5File(fn) as file:
@@ -136,6 +127,7 @@ class dHybridRspecies(Species):
     def __init__(self, species_number: int, parent):
         self.n = self.number = self.sp_num = species_number
         self.nstr = str(self.n).zfill(2)
+        Species.__init__(self, f"sp{self.nstr}")
         self.parent = parent 
         self.input = getattr(parent.input, f"sp{str(self.n).zfill(2)}")
         self.loaded = False
