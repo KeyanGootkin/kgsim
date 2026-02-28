@@ -42,7 +42,8 @@ def extract_energy(file_name: str) -> tuple:
 def iters(simulation) -> list[int]:
     return [int(fn[-11:-3]) for fn in simulation.density.file_names]
 def times(simulation) -> list[float]:
-    return list(np.array(iters(simulation)).astype(float) * simulation.dt)
+    x = list(np.array(iters(simulation)).astype(float) * simulation.dt)
+    return [round(xi, )]
 def particle_video(
     sim,
     particles: list[str] | int,
