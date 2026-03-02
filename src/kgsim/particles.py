@@ -8,6 +8,7 @@ class Species:
             m: float = 1.,
             q: float = 1.
         ):
+        """docstring"""
         self.name = name
         self.m = m 
         self.q = q 
@@ -19,9 +20,10 @@ class Particle:
     def __init__(
             self,
             species: Species,
-            id: int
-    ):
+            tag: str
+        ):
+        """docstring"""
         self.species = species 
-        self.id = id
+        self.tag = tag
         
-    def __repr__(self): return f"PARTICLE {self.id} ({self.species})"
+    def __repr__(self): return f"{self.species.name}: {self.tag}"

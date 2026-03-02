@@ -10,15 +10,9 @@ from kgsim.dhybridr.anvil_submit import AnvilSubmitScript
 from kgsim.templates import dHybridRtemplate
 
 from kplot import show, func_video
-from kbasic.environment import frameDir
-from kbasic.Tex import texfraction
 from kbasic.parsing import Folder
 from kbasic.user_input import yesno
 from os import system
-from os.path import isdir
-from glob import glob
-
-from matplotlib.pyplot import cm as cmaps
 import numpy as np 
 from h5py import File as h5File
 
@@ -40,10 +34,20 @@ def extract_energy(file_name: str) -> tuple:
         E = np.exp(lne)
         return E, fE, dlne
 def iters(simulation) -> list[int]:
+    """Grab the iterations of each snapshot for a simulation"""
     return [int(fn[-11:-3]) for fn in simulation.density.file_names]
-def times(simulation) -> list[float]:
+def times(simulation: GenericSimulation, ndigits: int = 7) -> list[float]:
+    """return the time (in simulation units) of each measurement
+
+    Args:
+        simulation (GenericSimulation): the sim you want to extract times from
+        ndigits (int, optional): how many digits to round to (helps with floating point error). Defaults to 7.
+
+    Returns:
+        list[float]: the time (in simulation units) of each snapshot of the simulation.
+    """
     x = list(np.array(iters(simulation)).astype(float) * simulation.dt)
-    return [round(xi, )]
+    return [round(xi, ndigits) for xi in x]
 def particle_video(
     sim,
     particles: list[str] | int,
@@ -102,10 +106,21 @@ def particle_video(
 # >-|===|>                             Classes                             <|===|-<
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
 class dHybridRparticle(Particle):
-    def __init__(self, tag: str, species: Species, load: bool = False):
+    def __init__(
+        self, 
+        species: Species,
+        tag: str,  
+        load: bool = True
+        ) -> None:
+        """docstring"""
         self.tag = tag
         self.species = self.sp = species
+        Particle.__init__(self, species, tag)
+        self.loaded: bool = False
         if load: self.load()
+    def __len__(self) -> int: 
+        assert self.loaded, f"Tried to take the length of {self} without loading first"
+        return len(self.x)
     def load(self):
         with h5File(self.species.path) as file:
             for k in track_keys:
@@ -113,35 +128,52 @@ class dHybridRparticle(Particle):
                 except: continue
             self.x = self.x1 
             self.y = self.x2
-    def follow_video(self, background=None, window=100, **kwds):
-        sim = self.species.parent
-        if not background: background = sim.density
-        di = sim.input.sp01.track_nstore
-        db = sim.input.ndump
-        center = (window//2, window//2)
-        fig,ax,img = show(background[0], **kwds)
-        line, = ax.plot(*center, ls='None', marker='.', ms=10, color='r')
-        for i in range(0, sim.input.niter, di):
-            pind = i // di 
-            img.set
+            self.loaded: bool = True
 class dHybridRspecies(Species):
-    def __init__(self, species_number: int, parent):
+    def __init__(
+        self, 
+        parent: GenericSimulation, 
+        species_number: int
+        ) -> None:
+        """docstring"""
         self.n = self.number = self.sp_num = species_number
         self.nstr = str(self.n).zfill(2)
         Species.__init__(self, f"sp{self.nstr}")
         self.parent = parent 
-        self.input = getattr(parent.input, f"sp{str(self.n).zfill(2)}")
+        self.input = getattr(parent.input, self.name)
+        self.pipsi = parent.input.ndump / parent.input.sp01.track_nstore # particle indices per sim index
         self.loaded = False
         if self.input.track_dump:
             self.path = parent.path+f"/Output/Tracks/Sp{self.nstr}/track_Sp{self.nstr}.h5"
             self.load()
-    
+    def __repr__(self) -> str: return self.name
+    def __str__(self) -> str: return self.name
+    def __len__(self) -> int: 
+        assert self.loaded, f"Tried to take the length of {self} without loading first"
+        return len(self.tags)
+    def __getitem__(self, key):
+        match key:
+            case str(tag): return dHybridRparticle(self, tag)
+            case int(ind): return dHybridRparticle(self, self.tags[ind])
+            case slice(start=i, stop=j, step=di): 
+                return [
+                    dHybridRparticle(self, self.tags[k]) for k in range(
+                        0 if i is None else i, 
+                        len(self.tags) if j is None else j, 
+                        1 if di is None else di
+                        )
+                    ]
     def load(self):
         with h5File(self.path) as file:
             self.tags = np.array(list(file.keys()))
             self.loaded = True 
 
-    def sample(self, N, load=False): return np.array([dHybridRparticle(t, self) for t in np.random.choice(self.tags, size=N, load=load)])
+    def sample(self, N: int = 1, load: bool = True): 
+        particle_list = np.array([
+            dHybridRparticle(self, t, load=load) for t in np.random.choice(self.tags, size=N)
+            ])
+        if len(particle_list)==1: return particle_list[0]
+        else: return particle_list
 class dHybridR(GenericSimulation):
     """
     A simulation class to interact with dHybridR simulations in python
@@ -214,7 +246,7 @@ class dHybridR(GenericSimulation):
         self.energy_pdf = np.vstack(self.energy_pdf) 
         self.dlne = np.vstack(self.dlne) 
         if self.input.sp01.track_dump:
-            self.sp01 = dHybridRspecies(1, self)
+            self.sp01 = dHybridRspecies(self, 1)
         self.iter = np.array(iters(self))
         self.time = np.array(times(self))
 class dHybridRgroup(SimulationGroup):
