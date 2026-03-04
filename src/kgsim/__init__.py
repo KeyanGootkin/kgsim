@@ -1,5 +1,6 @@
 from kgsim.templates import *
 from kgsim.fields import *
+from kgsim.particles import *
 from kgsim.simulation import *
 from kgsim.dhybridr import *
 from kgsim.athena import *

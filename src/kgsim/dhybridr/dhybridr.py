@@ -10,6 +10,8 @@ from kgsim.dhybridr.anvil_submit import AnvilSubmitScript
 from kgsim.templates import dHybridRtemplate
 
 from kplot import show, func_video
+from kbasic.bar import verbose_bar
+from kbasic.strings import purple
 from kbasic.parsing import Folder
 from kbasic.user_input import yesno
 from os import system
@@ -168,9 +170,10 @@ class dHybridRspecies(Species):
             self.tags = np.array(list(file.keys()))
             self.loaded = True 
 
-    def sample(self, N: int = 1, load: bool = True): 
+    def sample(self, N: int = 1, load: bool = True, verbose: bool = False): 
+        if verbose: print(purple(f"Drawing samples from {self.parent.name}'s {self.name}..."))
         particle_list = np.array([
-            dHybridRparticle(self, t, load=load) for t in np.random.choice(self.tags, size=N)
+            dHybridRparticle(self, t, load=load) for t in verbose_bar(np.random.choice(self.tags, size=N), verbose)
             ])
         if len(particle_list)==1: return particle_list[0]
         else: return particle_list
