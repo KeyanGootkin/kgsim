@@ -5,7 +5,7 @@
 from kgsim.tristan.tristan import Tristan, TristanParticleSpecies, TristanParticleQuantity
 from kgsim.fields import VectorField
 #non-pysim imports
-import numpy as np
+from numpy import where, unique
 
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
 # >-|===|>                             Classes                             <|===|-<
@@ -37,7 +37,7 @@ class MaskedTristanParticleQuantity(TristanParticleQuantity):
         self.species = species
 
     def __getitem__(self, item):
-        mask = np.where(getattr(self.species, self.mask_param)[item]==self.mask_value)
+        mask = where(getattr(self.species, self.mask_param)[item]==self.mask_value)
         return super().__getitem__(item)[mask]
 
 class SubPopulation(TristanParticleSpecies):
@@ -115,6 +115,6 @@ class KappaSim(Tristan):
         self.kappa_density = self.input.kappadens.value
         self.ions.kappa = SubPopulation(self.ions, "ch", self.kappa_density)
         self.electrons.kappa = SubPopulation(self.electrons, "ch", self.kappa_density)
-        self.thermal_density = max(np.unique(self.ions.ch[0]))
+        self.thermal_density = max(unique(self.ions.ch[0]))
         self.ions.thermal = SubPopulation(self.ions, "ch", self.thermal_density)
         self.electrons.thermal = SubPopulation(self.electrons, "ch", self.thermal_density)

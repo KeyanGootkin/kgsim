@@ -15,8 +15,9 @@ from kbasic.strings import purple
 from kbasic.parsing import Folder
 from kbasic.user_input import yesno
 from os import system
-import numpy as np 
 from h5py import File as h5File
+from numpy import mean, linspace, diff, exp, array, prod, inf, vstack
+from numpy.random import choice
 
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
 # >-|===|>                           Definitions                           <|===|-<
@@ -29,11 +30,11 @@ track_keys = ['B1', 'B2', 'B3', 'E1', 'E2', 'E3', 'ene', 'n', 'p1', 'p2', 'p3', 
 # simulation parsing
 def extract_energy(file_name: str) -> tuple:
     with h5File(file_name, 'r') as file:
-        fE = np.mean(file["DATA"], axis=1)
+        fE = mean(file["DATA"], axis=1)
         [low, high] = file["AXIS"]["X2 AXIS"][:]
-        lne = np.linspace(low, high, fE.shape[0])
-        dlne = np.diff(lne)[0]
-        E = np.exp(lne)
+        lne = linspace(low, high, fE.shape[0])
+        dlne = diff(lne)[0]
+        E = exp(lne)
         return E, fE, dlne
 def iters(simulation) -> list[int]:
     """Grab the iterations of each snapshot for a simulation"""
@@ -48,7 +49,7 @@ def times(simulation: GenericSimulation, ndigits: int = 7) -> list[float]:
     Returns:
         list[float]: the time (in simulation units) of each snapshot of the simulation.
     """
-    x = list(np.array(iters(simulation)).astype(float) * simulation.dt)
+    x = list(array(iters(simulation)).astype(float) * simulation.dt)
     return [round(xi, ndigits) for xi in x]
 def particle_video(
     sim,
@@ -76,11 +77,11 @@ def particle_video(
     fn = sim.path+"/Output/Tracks/Sp01/track_Sp01.h5"
     with h5File(fn) as file:
         # extract particle tracks based on the particles argument
-        tags = np.array(list(file.keys()))
+        tags = array(list(file.keys()))
         match particles:
             case [str(x), ]: selected = particles 
-            case int(x): selected = np.random.choice(tags, size=x, replace=False)
-        sx, sy = np.array([file[t]['x1'] for t in selected]).T, np.array([file[t]['x2'] for t in selected]).T 
+            case int(x): selected = choice(tags, size=x, replace=False)
+        sx, sy = array([file[t]['x1'] for t in selected]).T, array([file[t]['x2'] for t in selected]).T 
         # setup background
         if not background: background = sim.density
         # initialize plots
@@ -167,13 +168,13 @@ class dHybridRspecies(Species):
                     ]
     def load(self):
         with h5File(self.path) as file:
-            self.tags = np.array(list(file.keys()))
+            self.tags = array(list(file.keys()))
             self.loaded = True 
 
     def sample(self, N: int = 1, load: bool = True, verbose: bool = False): 
         if verbose: print(purple(f"Drawing samples from {self.parent.name}'s {self.name}..."))
-        particle_list = np.array([
-            dHybridRparticle(self, t, load=load) for t in verbose_bar(np.random.choice(self.tags, size=N), verbose)
+        particle_list = array([
+            dHybridRparticle(self, t, load=load) for t in verbose_bar(choice(self.tags, size=N), verbose)
             ])
         if len(particle_list)==1: return particle_list[0]
         else: return particle_list
@@ -200,11 +201,11 @@ class dHybridR(GenericSimulation):
                 self.run()
         elif self.output.exists: 
             self.parse_output()
-            self.ncores: int = int(np.prod(self.input.node_number))
+            self.ncores: int = int(prod(self.input.node_number))
             self.ncores_charged: int = self.ncores + self.ncores % 128
             if self.out.exists:
                 self.runtime: float = self.out.runtime #run time as calculated from out file, in hours
-                self.corehours: float = self.runtime * np.prod(self.ncores)
+                self.corehours: float = self.runtime * prod(self.ncores)
                 self.corehours_charged: float = self.runtime * self.ncores_charged
         self.restartDir = Folder(self.path+"/Restart")
     def __repr__(self) -> str: return self.name
@@ -221,7 +222,7 @@ class dHybridR(GenericSimulation):
         self.niter = self.input.niter
         self.dx: float = self.input.boxsize[0]/self.input.ncells[0]
         self.dy: float = self.input.boxsize[1]/self.input.ncells[1]
-        self.dz: float = self.input.boxsize[2]/self.input.ncells[2] if len(self.input.boxsize)==3 else np.inf
+        self.dz: float = self.input.boxsize[2]/self.input.ncells[2] if len(self.input.boxsize)==3 else inf
     def run(self, initializer: dHybridRinitializer, submit_script: AnvilSubmitScript) -> None:
         initializer.prepare_simulation()
         submit_script.write()
@@ -244,14 +245,14 @@ class dHybridR(GenericSimulation):
             self.energy_grid,
             self.energy_pdf,
             self.dlne
-        ] = np.array([[*extract_energy(f)] for f in self.etx1.file_names], dtype=object).T
-        self.energy_grid = np.vstack(self.energy_grid) 
-        self.energy_pdf = np.vstack(self.energy_pdf) 
-        self.dlne = np.vstack(self.dlne) 
+        ] = array([[*extract_energy(f)] for f in self.etx1.file_names], dtype=object).T
+        self.energy_grid = vstack(self.energy_grid) 
+        self.energy_pdf = vstack(self.energy_pdf) 
+        self.dlne = vstack(self.dlne) 
         if self.input.sp01.track_dump:
             self.sp01 = dHybridRspecies(self, 1)
-        self.iter = np.array(iters(self))
-        self.time = np.array(times(self))
+        self.iter = array(iters(self))
+        self.time = array(times(self))
 class dHybridRgroup(SimulationGroup):
     def __init__(self, path, **sim_kwds):
         SimulationGroup.__init__(self, path, simtype=dHybridR, **sim_kwds)

@@ -4,7 +4,7 @@
 from kgsim.templates import dHybridRtemplate
 
 from kbasic.parsing import File
-import numpy as np
+from numpy import float32, float64, ndarray, unique, r_
 from datetime import datetime, date
 
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
@@ -49,7 +49,7 @@ def input_match(input_code: str):
             return str(string[1:-1])
         ###### else ######
         case other:
-            raise ValueError(f"I couldn't recognize the code you gave me\n{fortran_code}")
+            raise ValueError(f"I couldn't recognize the code you gave me\n{input_code}")
 def python_match_input(python_code) -> str:
     """
     matches python objects to dHybridR input file equivilents
@@ -63,7 +63,7 @@ def python_match_input(python_code) -> str:
             return '.false.'
         case number if type(number) == int:
             return f"{python_code}"
-        case number if type(number) in [float, np.float64, np.float32]:
+        case number if type(number) in [float, float64, float32]:
             if str(number).split('.')[-1] == '0':
                 return f"{int(python_code)}."
             elif 'e' in str(number):
@@ -77,7 +77,7 @@ def python2input(code):
     :param code: iterable containing python objects
     :return: list of input file equivalents
     """
-    if not type(code) in [tuple, list, np.ndarray]:
+    if not type(code) in [tuple, list, ndarray]:
         return python_match_input(code)
     input_code = [f"{python_match_input(x)}," for x in code]
     return "".join(input_code)
@@ -92,7 +92,7 @@ def input2python(code):
         return python_code[0]
     return python_code
 def is_input_header_boarder(line: str) -> bool:
-    return len(chars:=np.unique([x for x in line]))==3 and all(chars == np.unique([x for x in "! -"]))
+    return len(chars:=unique([x for x in line]))==3 and all(chars == unique([x for x in "! -"]))
 def is_input_section_header(line: str) -> bool:
     return line.startswith("!---") or line.startswith("! ---")
 def is_input_species_section_header(line: str, species: int = None) -> bool:
@@ -105,7 +105,7 @@ def is_input_species_section_header(line: str, species: int = None) -> bool:
 class InputParameter:
     def __init__(self, name: str, value, comment: str = None) -> None:
         self.name = name
-        self.input_name = name if type(value) not in [list, tuple, np.ndarray] else f"{name}(1:{len(value)})"
+        self.input_name = name if type(value) not in [list, tuple, ndarray] else f"{name}(1:{len(value)})"
         self.value = value 
         self.comment = "" if comment is None else "!"+comment
     def __str__(self) -> str:
@@ -113,7 +113,6 @@ class InputParameter:
         show_string = " "*8 + f"{self.input_name}={python2input(self.value)}".ljust(40)+self.comment
         return show_string if self.value is not None else f"!{show_string}"
     def __repr__(self) -> str: return f"{self.name}: {self.value}"
-
 class InputSection:
     def __init__(self, lines: list) -> None:
         self.lines = lines
@@ -147,7 +146,6 @@ class InputSection:
         "\n".join([str(p) for p in self.params.values()]),
         "}"
     ])
-
 class SpeciesInput:
     def __init__(self, lines: list, i: int) -> None:
         self.lines = lines
@@ -177,7 +175,6 @@ class SpeciesInput:
         for sec in self.sections.values():
             for par_name in sec.params.keys():
                 sec.params[par_name].value = getattr(self, par_name)
-
 class dHybridRinput(File):
     header = "\n".join([
         "! -------------------------------------------------------------------------------",
@@ -247,7 +244,7 @@ class dHybridRinput(File):
             for par_name, par in sec.params.items():
                 all_params.append(par_name)
                 setattr(self, par_name, par.value)
-        assert len(np.unique(all_params))==len(all_params), "you have a duplicate parameter in your input file! >:-("
+        assert len(unique(all_params))==len(all_params), "you have a duplicate parameter in your input file! >:-("
             
     def save_changes(self) -> None:
         #set section parameters from self.parameters so that user can set the input parameters
@@ -263,7 +260,7 @@ class dHybridRinput(File):
         first_sections = "\n".join([str(sec) for sec in sections_not_all_species]).split("\n")
         species_sections  = "\n".join([str(sp) for sp in self.species.values()]).split("\n")
         final_section = str(self.sections['diag_species_total']).split("\n") 
-        self.lines = np.r_[
+        self.lines = r_[
             head,
             first_sections,
             species_sections,
@@ -271,7 +268,6 @@ class dHybridRinput(File):
         ]
         #write lines
         with open(self.path, 'w') as file: file.write("\n".join(self.lines))
-
 class dHybridRout(File):
     def __init__(self, path: str) -> None:
         super().__init__(path)
@@ -279,7 +275,6 @@ class dHybridRout(File):
             self.read()
             self.dt: datetime = (self.end - self.start)
             self.runtime: float = self.dt.seconds / 60. / 60.
-
     def read(self):
         File.read(self)
         self.start = datetime.now()

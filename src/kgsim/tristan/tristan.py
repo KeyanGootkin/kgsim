@@ -7,8 +7,8 @@ from kgsim.dhybridr.io import InputParameter
 
 from kbasic.parsing import Folder
 from glob import glob
-import numpy as np
 from h5py import File
+from numpy import unique, append, diff, linspace, arange, sqrt
 
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
 # >-|===|>                           Definitions                           <|===|-<
@@ -112,7 +112,7 @@ def tristan_loader(
     output = {}
     param_files = [tristan_param_file_convert[pi] for pi in params]
     # for each file we need to read
-    for pf in np.unique(param_files):
+    for pf in unique(param_files):
         for i in inds:
             with File(f"{sim_path}/output/{pf}.{str(i+1).zfill(zfill_level)}") as file:
                 # for each parameter requested
@@ -120,7 +120,7 @@ def tristan_loader(
                     if pi not in file: continue # only take the params in the active file
                     P = file[pi][:].copy()
                     if P.ndim==3: P = P[0, padding : -padding + 1, padding : -padding + 1]
-                    output[pi] = np.append(output[pi], P, axis=0) if pi in output else P
+                    output[pi] = append(output[pi], P, axis=0) if pi in output else P
     return output
 
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
@@ -147,7 +147,6 @@ class TristanInput:
             value, comment = valcom.split('#') if '#' in valcom else (valcom.strip(), None)
             param, value = param.strip(), value.strip()
             setattr(self, param, InputParameter(param, float(value), comment=comment))
-
 class TristanScalarField(ScalarField):
     def __init__(
             self,
@@ -191,7 +190,6 @@ class TristanScalarField(ScalarField):
     def reader(self, fname: str, item: int):
         output = tristan_loader(self.parent.path, [item], [self.param_key], zfill_level=self.zfill_level, padding=self.padding)
         return output[self.param_key]
-
 class TristanParticleQuantity(TristanScalarField):
     def __init__(            
             self,
@@ -222,7 +220,6 @@ class TristanParticleQuantity(TristanScalarField):
             latex = latex,
             padding = 0
         )
-
 class TristanParticleSpecies:
     def __init__(
             self,
@@ -265,8 +262,7 @@ class TristanParticleSpecies:
             self.ch = TristanParticleQuantity("ch"+sig, **kwargs)
             self.Bx = TristanParticleQuantity("bx", name="Bx", latex="$B_x$", **kwargs)
 
-            # self.density,_,_ = np.array([np.histogram2d(self.x[i], self.y[i], bins=[self.parent.Nx, self.parent.Ny], weights=self.ch) for i in range(len(self.x))])
-
+            # self.density,_,_ = array([histogram2d(self.x[i], self.y[i], bins=[self.parent.Nx, self.parent.Ny], weights=self.ch) for i in range(len(self.x))])
 class Tristan(GenericSimulation):
     def __init__(
             self,
@@ -299,12 +295,12 @@ class Tristan(GenericSimulation):
         self.input = TristanInput(self.path+"/input")
         # time
         self.c = self.input.c.value
-        self.steps = np.arange(0, self.input.last.value, self.input.interval.value)
+        self.steps = arange(0, self.input.last.value, self.input.interval.value)
         w_pe = self.steps[-1] * self.c / self.input.c_omp.value
-        om_ce = w_pe * np.sqrt(self.input.sigma.value)
+        om_ce = w_pe * sqrt(self.input.sigma.value)
         mratio = self.input.mi.value / self.input.me.value
         om_ci = om_ce / mratio
-        self.time = np.round(self.steps / om_ci, 0)
+        self.time = round(self.steps / om_ci, 0)
         # grids
         self.Nx = int(self.input.mx0.value)
         self.Ny = int(self.input.my0.value)
@@ -314,10 +310,10 @@ class Tristan(GenericSimulation):
         d_xi = d_xe / self.input.mi.value 
         d_ye = self.Ny * self.input.istep.value / self.input.c_omp.value
         d_yi = d_ye / self.input.mi.value
-        self.x = np.linspace(0, d_xe, self.Nx)
-        self.y = np.linspace(0, d_ye, self.Ny)
-        self.dx = np.diff(self.x)[0]
-        self.dy = np.diff(self.y)[0]
+        self.x = linspace(0, d_xe, self.Nx)
+        self.y = linspace(0, d_ye, self.Ny)
+        self.dx = diff(self.x)[0]
+        self.dy = diff(self.y)[0]
 
     def parse_output(self):
         """Read output files and construct relevant data structures.

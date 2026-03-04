@@ -6,33 +6,30 @@ from kbasic.bar import verbose_bar
 from kbasic.parsing import Folder, File
 from kbasic.typing import Number, Iterable
 from glob import glob
-import numpy as np
 from h5py import File as h5File
 from functools import cached_property
 from os.path import isdir, isfile
 from matplotlib.pyplot import gca
 from matplotlib.axes import Axes
 from matplotlib.cm import plasma as default_cmap
-
+from numpy import zeros, cumsum, gradient, ndarray, array, prod, arange, sqrt, \
+                  divergence, nanstd, hypot, inf
 
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
 # >-|===|>                            Functions                            <|===|-<
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
 def calc_psi(Bx, By, dx, dy):
-    psi = np.zeros(Bx.shape)
-    psi[1:,0] = np.cumsum(Bx[1:,0])*dy
-    psi[:,1:] = (psi[:,0] - np.cumsum(By[:,1:], axis=1).T*dx).T
+    psi = zeros(Bx.shape)
+    psi[1:,0] = cumsum(Bx[1:,0])*dy
+    psi[:,1:] = (psi[:,0] - cumsum(By[:,1:], axis=1).T*dx).T
     return psi
-
-def ddx(F,dx): return np.gradient(F, dx)[-1]
-def ddy(F,dy): return np.gradient(F, dy)[-2] 
-def ddz(F,dz): return np.gradient(F, dz)[-3]
-
-
-def intdx(F,dx): return np.cumsum(F, axis=1) * dx
-def intdy(F,dy): return np.cumsum(F, axis=0) * dy
+def ddx(F,dx): return gradient(F, dx)[-1]
+def ddy(F,dy): return gradient(F, dy)[-2] 
+def ddz(F,dz): return gradient(F, dz)[-3]
+def intdx(F,dx): return cumsum(F, axis=1) * dx
+def intdy(F,dy): return cumsum(F, axis=0) * dy
 def Az(Bx, By, dx=1, dy=1):
-    Az = np.zeros(Bx.shape)
+    Az = zeros(Bx.shape)
     Az[1:] = intdy(Bx[1:], dy)
     Az[:,1:] = (Az[:,0]-intdx(By[:,1:], dx).T).T
     return Az
@@ -74,7 +71,7 @@ class ScalarField:
     """
     def __init__(
         self, 
-        source: str|Folder|File|list|np.ndarray, 
+        source: str|Folder|File|list|ndarray, 
         parent = None,
         caching: bool = False,
         verbose: bool = False,
@@ -86,7 +83,7 @@ class ScalarField:
         self.verbose: bool = verbose
         self.parent = parent
         # if parent:
-        #     self.di = tuple(np.array(parent.input.boxsize, dtype=float) / np.array(parent.input.ncells, dtype=int))
+        #     self.di = tuple(array(parent.input.boxsize, dtype=float) / array(parent.input.ncells, dtype=int))
         #setup cache
         self.caching: bool = caching
         self.cache: dict = {}
@@ -112,12 +109,12 @@ class ScalarField:
                 if extension=="h5": self._from_h5(source)
                 else: self._from_csv(source)
             #or if its already been read
-            case np.ndarray(): 
+            case ndarray(): 
                 self.single = True
                 self._from_numpy(source)
             case list(): 
                 self.single = True
-                self._from_numpy(np.array(source))
+                self._from_numpy(array(source))
     def __len__(self) -> int: return 1 if self.single else len(self.file_names)
     def __iter__(self):
         assert not self.single, "Cannot iterate through single scalar field"
@@ -129,7 +126,7 @@ class ScalarField:
             self.index += 1
             return self[i]
         else: raise StopIteration
-    def __getitem__(self, item: int|slice|tuple|list) -> np.ndarray:
+    def __getitem__(self, item: int|slice|tuple|list) -> ndarray:
         if self.single: return self.array[item]
         match item:
             case int(): 
@@ -142,55 +139,49 @@ class ScalarField:
                         item.step if not item.step is None else 1
                     )
                 ]
-                return np.array([
+                return array([
                     self.cache[i] if self.caching and i in self.cache.keys() else self.reader(self.file_names[i], i) for i in item_iters
                 ])
-            case tuple()|list(): return np.array([
+            case tuple()|list(): return array([
                 self.cache[i] if self.caching and i in self.cache.keys() else self.reader(self.file_names[i], i) for i in item
             ])
-
     def _from_folder_of_h5(self, path:str) -> None: 
         self.path = path.path if isinstance(path, Folder) else path
         self.file_names: list = sorted(glob(path + "/*.h5"))
         self.reader: function = self._read_h5_file
         self.shape = self[0].shape
         self.ndims = len(self.shape)
-        self.size = np.prod(self.shape) * len(self)
+        self.size = prod(self.shape) * len(self)
     def _from_h5(self, file:str) -> None:
         self.file = file.path if isinstance(file,File) else file
         self.array = self._read_h5_file(file, 0)
         self.shape = self.array.shape 
         self.ndims = len(self.shape)
-        self.size = np.prod(self.shape) * len(self)
-    def _read_h5_file(self, file:str, item) -> np.ndarray:
+        self.size = prod(self.shape) * len(self)
+    def _read_h5_file(self, file:str, item) -> ndarray:
         with h5File(file, 'r') as f:
-            output = np.array(f["DATA"][:])
+            output = array(f["DATA"][:])
             #GODDMANIT I HATE THAT IT DOES Y,X and not X,Y
             if self.caching: self.cache[item] = output
             return output
-    
     def _from_csv(self) -> None:
         self.single = True
     def _read_csv_file(self) -> None: pass
-    
-    def _from_numpy(self, array:np.ndarray) -> None:
+    def _from_numpy(self, array:ndarray) -> None:
         self.single = True
         self.array = array
         self.shape = array.shape
         self.ndims = len(self.shape)
-
     def show(self, item:int, **kwargs) -> None: 
         if hasattr(self.parent, 'dx'):
-            x_ticks = np.arange(0, self.parent.input.boxsize[0], self.parent.dx)
-            y_ticks = np.arange(0, self.parent.input.boxsize[1], self.parent.dy)
+            x_ticks = arange(0, self.parent.input.boxsize[0], self.parent.dx)
+            y_ticks = arange(0, self.parent.input.boxsize[1], self.parent.dy)
         show(self[item], x=x_ticks, y=y_ticks, **kwargs)
-    
     def movie(self, norm='none', cmap=default_cmap, alter_func=None,**kwrg) -> None:
         @show_video(name=self.name, latex=self.latex, norm=norm, cmap=cmap)
         def reveal_thyself(s,alter_func=alter_func, **kwargs): 
-            return np.array([self[i] for i in range(len(self))]) if alter_func is None else np.array([alter_func(self[i]) for i in range(len(self))])
+            return array([self[i] for i in range(len(self))]) if alter_func is None else array([alter_func(self[i]) for i in range(len(self))])
         reveal_thyself(self if self.parent is None else self.parent, alter_func=alter_func,**kwrg)
-
 class VectorField:
     def __init__(
             self, 
@@ -229,16 +220,16 @@ class VectorField:
         self.set_parallel(parallel)
 
     def __len__(self) -> int: return min([len(self.x), len(self.y), len(self.z)])
-    def __abs__(self) -> np.ndarray:
+    def __abs__(self) -> ndarray:
         homo = all([len(self.x[i])==len(self.x[0]) for i in range(len(self))])
-        return np.array([
-            np.sqrt(sum([
+        return array([
+            sqrt(sum([
                 c[i]**2 for c in self.components
             ])) for i in verbose_bar(range(len(self)), self.verbose, desc="taking magnitude...")
         ], dtype=float if homo else object)
-    def __getitem__(self, item: int|slice) -> np.ndarray:
+    def __getitem__(self, item: int|slice) -> ndarray:
         match type(item):
-            case int(): return np.array([c[item] for c in self.components])
+            case int(): return array([c[item] for c in self.components])
             case slice():
                 item_iters = [
                     i for i in range(
@@ -247,37 +238,36 @@ class VectorField:
                         item.step if not item.step is None else 1
                     )
                 ]
-                return np.array([
+                return array([
                     [
                         c[i] for c in self.components
                     ] for i in item_iters
                 ])
-    
-    def dot(self, other) -> np.ndarray: 
+    def dot(self, other) -> ndarray: 
         if isinstance(other, VectorField):
             assert self.ndims==3, "only 3D vector fields can be dotted at this time"
             assert other.ndims==3, "Can only dot into a 3D vector field at this time"
             if self.verbose: print("constructing A...")
-            A = np.array([
+            A = array([
                 [
                     [
                         [self.x[k][i,j], self.y[k][i,j], self.z[k][i,j]]
                     for i in range(self.shape[0])]
                 for j in range(self.shape[1])] 
             for k in verbose_bar(range(len(self)), self.verbose, desc="constructing A...")])
-            B = np.array([
+            B = array([
                 [
                     [
                         [other.x[k][i,j], other.y[k][i,j], other.z[k][i,j]]
                     for i in range(other.shape[0])]
                 for j in range(other.shape[1])] 
             for k in verbose_bar(range(len(other)), self.verbose, desc="constructing B...")])
-            return np.sum(A * B, axis=2)
-    def cross(self, other, k:int) -> np.ndarray:
+            return sum(A * B, axis=2)
+    def cross(self, other, k:int) -> ndarray:
         if type(other)==VectorField: 
             assert self.ndims==3, "only 3D vector fields can be crossed at this time"
             assert other.ndims==3, "Can only cross into a 3D vector field at this time"
-            return np.array([
+            return array([
                 self.y[k]*other.z[k] - self.z[k]*other.y[k], 
                 self.z[k]*other.x[k] - self.x[k]*other.z[k],
                 self.x[k]*other.y[k] - self.y[k]*other.x[k]
@@ -285,7 +275,7 @@ class VectorField:
     @cached_property
     def potential(self):
         match len(self.x.shape):
-            case 2: return np.array([Az(self.x[i], self.y[i], dx=self.dx, dy=self.dy) for i in range(len(self))])
+            case 2: return array([Az(self.x[i], self.y[i], dx=self.dx, dy=self.dy) for i in range(len(self))])
     def curlz(self, item: int|slice, order: int = 2):
         match type(item):
             case int(): return curlz(self.x[item], self.y[item], order=order)
@@ -297,9 +287,9 @@ class VectorField:
                         item.step if not item.step is None else 1
                     )
                 ]
-                return np.array([curlz(self.x[i], self.y[i], order=order) for i in item_iters])
+                return array([curlz(self.x[i], self.y[i], order=order) for i in item_iters])
     def div(self, item: int|slice, order: int = 2):
-        if not item: return np.array([divergence(self.x[i], self.y[i], dx=self.dx, dy=self.dy, order=order) for i in range(len(self))])
+        if not item: return array([divergence(self.x[i], self.y[i], dx=self.dx, dy=self.dy, order=order) for i in range(len(self))])
         match type(item):
             case int(): return divergence(self.x[item], self.y[item], dx=self.dx, dy=self.dy, order=order)
             case slice():
@@ -310,22 +300,19 @@ class VectorField:
                         item.step if not item.step is None else 1
                     )
                 ]
-                return np.array([divergence(self.x[i], self.y[i], dx=self.dx, dy=self.dy, order=order) for i in item_iters])
-                
-
+                return array([divergence(self.x[i], self.y[i], dx=self.dx, dy=self.dy, order=order) for i in item_iters])
     def calc_Jz(self, item=None, verbose=True):
-        if not item: self.Jz = np.array([np.nanstd(j) for j in verbose_bar(self.curlz(slice(0,len(self))), verbose)])
-        elif type(item) in [int, slice]: self.Jz = np.nanstd(self.curlz(item), axis=(1,2))
+        if not item: self.Jz = array([nanstd(j) for j in verbose_bar(self.curlz(slice(0,len(self))), verbose)])
+        elif type(item) in [int, slice]: self.Jz = nanstd(self.curlz(item), axis=(1,2))
         else: raise TypeError(f"calc_Jz only takes ints, slices, or None for item, not {type(item)}-type objects")
-
-    def calc_perp(self, item=None) -> np.ndarray: 
+    def calc_perp(self, item=None) -> ndarray: 
         if not item:
-            self.perp = np.array([
-                np.hypot(self.perpendicular[0][j], self.perpendicular[1][j]) 
+            self.perp = array([
+                hypot(self.perpendicular[0][j], self.perpendicular[1][j]) 
                 for j in verbose_bar(range(len(self)), self.verbose, desc="perpendicularizing")
             ])
         elif type(item)==int: 
-            self.perp = np.hypot(self.perpendicular[0][item], self.perpendicular[1][item])
+            self.perp = hypot(self.perpendicular[0][item], self.perpendicular[1][item])
         elif type(item)==slice: 
             item_iters = [
                 i for i in range(
@@ -334,10 +321,10 @@ class VectorField:
                     item.step if item.step else 1
                 )
             ]
-            self.perp = np.array([np.hypot(self.perpendicular[0][j], self.perpendicular[1][j]) for j in item_iters])
+            self.perp = array([hypot(self.perpendicular[0][j], self.perpendicular[1][j]) for j in item_iters])
         else: raise TypeError(f"calc_perp only takes ints, slices, or None for item, not {type(item)}-type objects")
     @cached_property
-    def psi(self) -> np.ndarray: return np.array([
+    def psi(self) -> ndarray: return array([
         calc_psi(Bx, By, self.dx, self.dy) for Bx, By in zip(self.x, self.y)
     ])       
     def set_parallel(self, component:str) -> None:
@@ -361,7 +348,7 @@ class VectorField:
                 def reveal_thyself(s, **kwargs): return self.perp                
             case 'par'|'parallel':
                 @show_video(name=self.name+"_par", latex=fr"${self.name}_\parallel$", norm=norm, cmap=cmap)
-                def reveal_thyself(s, **kwargs): return np.array([self.parallel[i] for i in range(len(self))])
+                def reveal_thyself(s, **kwargs): return array([self.parallel[i] for i in range(len(self))])
         reveal_thyself(self if self.parent is None else self.parent, **kwrg)
     def quiver(
         self,
@@ -369,8 +356,8 @@ class VectorField:
         ax: Axes = None,
         #x/y axes
         density: float = 10,
-        x: np.ndarray|None = None,
-        y: np.ndarray|None = None,
+        x: ndarray|None = None,
+        y: ndarray|None = None,
         transpose: bool = False,
         #everything else goes into matplotlib command
         **kwargs
@@ -379,9 +366,9 @@ class VectorField:
         match x, y:
             case None, None:
                 dx = int(self.x[0].shape[1] // density)
-                x = np.arange(0, self.x[0].shape[1], dx)
+                x = arange(0, self.x[0].shape[1], dx)
                 dy = int(self.y[0].shape[0] // density)
-                y = np.arange(0, self.x[0].shape[0], dy)
+                y = arange(0, self.x[0].shape[0], dy)
         # plot data
         print(dx, dy)
         if not transpose:
@@ -400,16 +387,16 @@ class NablaOperator:
             case _ if type(di) in Number.types: return (di, di, di) 
             case None:
                 match Field:
-                    case np.ndarray(): pass 
+                    case ndarray(): pass 
                     case ScalarField(parent=None): return (1, 1, 1)
                     case ScalarField(ndims=3): return (Field.parent.dz, Field.parent.dy, Field.parent.dx)
                     case ScalarField(ndims=2): return (Field.parent.dy, Field.parent.dx)
-                    case VectorField(): return parse_grid_di(Field.x, di=di)
+                    case VectorField(): return self.parse_grid_di(Field.x, di=di)
     def __mul__(self, other, di=None): # divergence
         match other:
             case VectorField():
                 d = self.parse_grid_di(other.x)
-                dz,dy,dx = d if len(d)==3 else tuple([np.inf, *d])
+                dz,dy,dx = d if len(d)==3 else tuple([inf, *d])
                 dFxdx = ddx(other.x[:], dx)
                 dFydy = ddy(other.y[:], dy)
                 dFzdz = ddz(other.z[:], dz) if other.ndims==3 else 0
@@ -418,7 +405,7 @@ class NablaOperator:
         match other:
             case VectorField(): 
                 d = self.parse_grid_di(other.x)
-                dz,dy,dx = d if len(d)==3 else tuple([np.inf, *d])
+                dz,dy,dx = d if len(d)==3 else tuple([inf, *d])
                 dt = 1 if not other.parent else other.parent.dt
                 dFzdy = ddy(other.z[:], dy)
                 dFydz = ddz(other.y[:], dz) if other.ndims==3 else 0 
@@ -433,16 +420,16 @@ class NablaOperator:
                     caching=other.caching, verbose=other.verbose, parent=other.parent, 
                     name=f"Curl of {other.name}", latex=fr"$\Nabla \times {other.latex}"
                 )
-            case np.ndarray():
+            case ndarray():
                 d = self.parse_grid_di(other, di)
-                dz,dy,dx = d if len(d)==3 else tuple([np.inf, *d])
+                dz,dy,dx = d if len(d)==3 else tuple([inf, *d])
                 dFzdy = ddy(other[-3], dy) if len(d)==3 else 0
                 dFydz = ddz(other[-2], dz) if len(d)==3 else 0 
                 dFxdz = ddz(other[-1], dz) if len(d)==3 else 0 
                 dFzdx = ddx(other[-3], dx) if len(d)==3 else 0
                 dFydx = ddx(other[-2], dx)
                 dFxdy = ddy(other[-1], dy)
-                return np.array([
+                return array([
                     dFydx - dFxdy,
                     dFxdz - dFzdx,
                     dFzdy - dFydz
@@ -452,9 +439,9 @@ class NablaOperator:
         match args:
             case (ScalarField(),): 
                 F: ScalarField = args[0]
-                arr: np.ndarray = F[:]
+                arr: ndarray = F[:]
                 di: tuple[float] = F.di if 'di' not in kwds.keys() else kwds['di']
-                gradarr: np.ndarray = np.gradient(arr, di)
+                gradarr: ndarray = gradient(arr, di)
                 # assume that the 0th axis is time, as will be the case with all simulation outputs, but not necessarily numpy arrays
                 # assume that the last axis is x
                 return VectorField(
@@ -463,6 +450,9 @@ class NablaOperator:
                 )
             case _: print("bad arguments : "+str(args)+str(kwds))
 
+# !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
+# >-|===|>                           Definitions                           <|===|-<
+# !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
 Nabla = NablaOperator()
 Del = NablaOperator()
 Grad = NablaOperator()

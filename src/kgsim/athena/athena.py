@@ -7,7 +7,7 @@ from kgsim.athena.athena_read import athdf
 
 from kbasic.parsing import Folder
 from glob import glob 
-import numpy as np
+from numpy import array
 import builtins
 
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
@@ -91,7 +91,7 @@ class Athena(GenericSimulation):
             y.append(fdata["x2f"])
             dxm.append(fdata["x1f"][1] - fdata["x1f"][0])
             dym.append(fdata["x2f"][1] - fdata["x2f"][0])
-        self.time = np.array(time)
+        self.time = array(time)
         self.dx = dxm[0]
         self.dy = dym[0]
         kwargs = {'caching':self.caching, 'verbose':self.verbose, 'parent':self}

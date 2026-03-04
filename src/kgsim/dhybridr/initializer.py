@@ -5,9 +5,7 @@ from kgsim.fields import ScalarField, VectorField
 
 from kbasic.parsing import File
 from scipy.io import FortranFile
-import numpy as np
-from numpy import pi
-
+from numpy import pi, ndarray, array, zeros, arange, tanh, cos, sin, sqrt, float32
 
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
 # >-|===|>                            Functions                            <|===|-<
@@ -19,9 +17,9 @@ def parse_config_value(val:str):
         val (str): The string representing the value after the = for each line of the configuration file
 
     Returns:
-        str | int | float | np.ndarray: the python object corresponding to the configuration value
+        str | int | float | ndarray: the python object corresponding to the configuration value
     """
-    if "," in val: return np.array([float(x) for x in val.split(',')])
+    if "," in val: return array([float(x) for x in val.split(',')])
     elif "." in val: return float(val)
     elif val[0] in "1234567890": return int(val)
     else: return val
@@ -45,11 +43,9 @@ class dHybridRconfig(File):
         if self.exists: self.read()
         #else user must supply the information
         else: self.set_interactive()
-
     def __setattr__(self, name, value) -> None:
         if name!="params": self.params.append(name)
         return super().__setattr__(name, value)
-
     def read(self) -> None:
         """method to read in the parameters in the config file and assign those to this object."""
         self.params = []
@@ -67,8 +63,7 @@ class dHybridRconfig(File):
                 # split the variable name and value and asign to this object
                 name, value = (x.strip() for x in line.split("="))
                 self.params.append(name)
-                setattr(self, name, parse_config_value(value))
-    
+                setattr(self, name, parse_config_value(value))   
     def write(self) -> None:
         """write each of the parameters in the param attribute to the config file. WARNING: Overwrites config file.
         """
@@ -76,7 +71,6 @@ class dHybridRconfig(File):
         self.lines = [f"{n}={getattr(self,n)}" for n in self.params]
         #write the file
         with open(self.path, 'w') as file: file.write("\n".join(self.lines))
-
     def set_interactive(self) -> None:
         print("this simulation hasn't been configured yet.")
         print("send an empty parameter to complete and write this object to file.")
@@ -85,7 +79,6 @@ class dHybridRconfig(File):
             self.__setattr__(new_param, parse_config_value(input("value: ")))
             print("\n")
         self.write()
-
 class dHybridRSnapshot:
     def __init__(
         self, 
@@ -107,7 +100,6 @@ class dHybridRSnapshot:
         self.T = sum(self.energy_grid*self.energy_pdf*self.dlne)
         self.tau = parent.tau[i]
         self.time = parent.time[i]
-
 class dHybridRinitializer:
     def __init__(
         self,
@@ -127,26 +119,25 @@ class dHybridRinitializer:
                 self.Nx: int = int(self.input.ncells[0])
                 self.shape: tuple = self.Nx,
             case 2:
-                [self.dy, self.dx] = np.array(self.L) / np.array(self.input.ncells)
+                [self.dy, self.dx] = array(self.L) / array(self.input.ncells)
                 [self.Ny, self.Nx] = self.input.ncells
                 self.shape = (self.Ny, self.Nx)
             case 3:
-                [self.dy, self.dx, self.dz] = np.array(self.L) / np.array(self.input.ncells)
+                [self.dy, self.dx, self.dz] = array(self.L) / array(self.input.ncells)
                 [self.Ny, self.Nx, self.Nz] = self.input.ncells
                 self.shape = (self.Ny, self.Nx, self.Nz)
 
     def build_B_field(self): 
-        self.B = np.array([np.zeros(self.input.ncells) for i in range(2)])
+        self.B = array([zeros(self.input.ncells) for i in range(2)])
     def build_u_field(self):
-        self.u = np.array([np.zeros(self.input.ncells) for i in range(2)])
-    def save_init_field(self, field: np.ndarray, path: str): 
+        self.u = array([zeros(self.input.ncells) for i in range(2)])
+    def save_init_field(self, field: ndarray, path: str): 
         FortranFile(path, 'w').write_record(field)
     def prepare_simulation(self):
         self.build_B_field()
         self.save_init_field(self.B.T, self.simulation.path+"/input/Bfld_init.unf")
         self.build_u_field()
         self.save_init_field(self.u.T, self.simulation.path+"/input/vfld_init.unf")
-
 class FlareWaveInit(dHybridRinitializer):
     def __init__(
             self,
@@ -164,13 +155,13 @@ class FlareWaveInit(dHybridRinitializer):
         self.psi0 = psi0
 
     def build_B_field(self, unknown_variable=69.12):
-        x = np.arange(0, self.Nx) * self.dx
-        y = np.arange(0, self.Ny) * self.dy
-        Bx = np.array([
-            self.B0 * (np.tanh((y - 0.25*self.L[1])/self.w0) - np.tanh((y - 0.75*self.L[1])/self.w0) - 1)
+        x = arange(0, self.Nx) * self.dx
+        y = arange(0, self.Ny) * self.dy
+        Bx = array([
+            self.B0 * (tanh((y - 0.25*self.L[1])/self.w0) - tanh((y - 0.75*self.L[1])/self.w0) - 1)
         for i in range(len(x))]).T
-        By = np.array([
-            (unknown_variable / self.L[0]) * np.cos(2*np.pi*x / self.L[0]) * np.sin(2*np.pi*x / self.L[0])**10
+        By = array([
+            (unknown_variable / self.L[0]) * cos(2*pi*x / self.L[0]) * sin(2*pi*x / self.L[0])**10
         for i in range(len(y))])
-        Bz = np.sqrt(self.B0**2 + self.Bg**2 - Bx**2)
-        self.B = np.array([Bx.T, By.T, Bz.T], dtype=np.float32)   
+        Bz = sqrt(self.B0**2 + self.Bg**2 - Bx**2)
+        self.B = array([Bx.T, By.T, Bz.T], dtype=float32)   
