@@ -18,6 +18,7 @@ from os import system
 from h5py import File as h5File
 from numpy import mean, linspace, diff, exp, array, prod, inf, vstack
 from numpy.random import choice
+from glob import glob
 
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
 # >-|===|>                           Definitions                           <|===|-<
@@ -211,7 +212,7 @@ class dHybridR(GenericSimulation):
     def __repr__(self) -> str: return self.name
     def __len__(self) -> int:
         if self.output.exists: 
-            return len(self.density)
+            return len(glob(self.output.path+"/Fields/Magnetic/Total/x/*.h5"))
         else: return 0
     def create(self) -> None:
         self.template.copy(self.path)

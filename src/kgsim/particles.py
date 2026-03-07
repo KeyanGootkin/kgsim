@@ -72,7 +72,7 @@ def video_particle_over(
     Lx, Ly = sim.input.boxsize
     x_grid = arange(0, Lx, sim.dx)
     y_grid = arange(0, Ly, sim.dy)
-    norm = auto_norm(norm, background)
+    norm = auto_norm(norm, background) if isinstance(norm, str) else norm
     #plot background
     fig,ax,img = show(background[0], ax=ax, norm=norm, x=x_grid, y=y_grid, cmap=cmap)
     #setup trails

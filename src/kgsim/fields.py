@@ -13,7 +13,7 @@ from matplotlib.pyplot import gca
 from matplotlib.axes import Axes
 from matplotlib.cm import plasma as default_cmap
 from numpy import zeros, cumsum, gradient, ndarray, array, prod, arange, sqrt, \
-                  divergence, nanstd, hypot, inf
+                  nanstd, hypot, inf
 
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
 # >-|===|>                            Functions                            <|===|-<
@@ -33,6 +33,9 @@ def Az(Bx, By, dx=1, dy=1):
     Az[1:] = intdy(Bx[1:], dy)
     Az[:,1:] = (Az[:,0]-intdx(By[:,1:], dx).T).T
     return Az
+def vectorcurlz(Fx, Fy, dx=1, dy=1):
+    return ddx(Fy, dx) - ddy(Fx, dy)
+
 
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
 # >-|===|>                             Classes                             <|===|-<
@@ -197,8 +200,8 @@ class VectorField:
         self.name = name
         self.latex = latex 
         self.parent = parent
-        # if parent: 
-        #     self.dx, self.dy = parent.dx, parent.dy
+        if parent: 
+            self.dx, self.dy = parent.dx, parent.dy
         self.verbose = verbose 
         self.caching = caching
         child_kwargs = {'parent':parent, 'verbose':verbose, 'caching':caching}
@@ -278,7 +281,7 @@ class VectorField:
             case 2: return array([Az(self.x[i], self.y[i], dx=self.dx, dy=self.dy) for i in range(len(self))])
     def curlz(self, item: int|slice, order: int = 2):
         match type(item):
-            case int(): return curlz(self.x[item], self.y[item], order=order)
+            case int(): return vectorcurlz(self.x[item], self.y[item], order=order)
             case slice():
                 item_iters = [
                     i for i in range(
@@ -287,20 +290,20 @@ class VectorField:
                         item.step if not item.step is None else 1
                     )
                 ]
-                return array([curlz(self.x[i], self.y[i], order=order) for i in item_iters])
-    def div(self, item: int|slice, order: int = 2):
-        if not item: return array([divergence(self.x[i], self.y[i], dx=self.dx, dy=self.dy, order=order) for i in range(len(self))])
-        match type(item):
-            case int(): return divergence(self.x[item], self.y[item], dx=self.dx, dy=self.dy, order=order)
-            case slice():
-                item_iters = [
-                    i for i in range(
-                        item.start if not item.start is None else 0, 
-                        item.stop if not item.stop is None else len(self), 
-                        item.step if not item.step is None else 1
-                    )
-                ]
-                return array([divergence(self.x[i], self.y[i], dx=self.dx, dy=self.dy, order=order) for i in item_iters])
+                return array([vectorcurlz(self.x[i], self.y[i], order=order) for i in item_iters])
+    # def div(self, item: int|slice, order: int = 2):
+    #     if not item: return array([divergence(self.x[i], self.y[i], dx=self.dx, dy=self.dy, order=order) for i in range(len(self))])
+    #     match type(item):
+    #         case int(): return divergence(self.x[item], self.y[item], dx=self.dx, dy=self.dy, order=order)
+    #         case slice():
+    #             item_iters = [
+    #                 i for i in range(
+    #                     item.start if not item.start is None else 0, 
+    #                     item.stop if not item.stop is None else len(self), 
+    #                     item.step if not item.step is None else 1
+    #                 )
+    #             ]
+    #             return array([divergence(self.x[i], self.y[i], dx=self.dx, dy=self.dy, order=order) for i in item_iters])
     def calc_Jz(self, item=None, verbose=True):
         if not item: self.Jz = array([nanstd(j) for j in verbose_bar(self.curlz(slice(0,len(self))), verbose)])
         elif type(item) in [int, slice]: self.Jz = nanstd(self.curlz(item), axis=(1,2))
@@ -434,7 +437,6 @@ class NablaOperator:
                     dFxdz - dFzdx,
                     dFzdy - dFydz
                 ]) if len(d)==3 else dFydx - dFxdy
-        
     def __call__(self, *args, **kwds): # gradient
         match args:
             case (ScalarField(),): 
