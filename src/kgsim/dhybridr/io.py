@@ -186,7 +186,7 @@ class dHybridRinput(File):
         if type(path)==list and type(path[0]==str): self.lines = path
         else:
             #init file properties
-            File.__init__(self, path, master=dHybridRtemplate.path+"/input/input", executable=False)
+            File.__init__(self, path, master=dHybridRtemplate.path+"/input/input")
             #if doesn't exist, make a copy from master
             # if not self.exists: self.update()
             #read in the current file

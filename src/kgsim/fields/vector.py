@@ -170,7 +170,7 @@ class VectorField:
         transpose: bool = False,
         #everything else goes into matplotlib command
         **kwargs
-    ) -> :
+    ) -> None:
         if not ax: ax = gca()
         match x, y:
             case None, None:

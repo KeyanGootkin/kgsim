@@ -2,7 +2,7 @@
 # >-|===|>                             Imports                             <|===|-<
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
 from kbasic.parsing import File, Folder 
-from kbasic.typing import Number, ArrayLike
+from kbasic.typing import Array, ArrayLike
 from kplot import show, default_cmap, show_video
 from numpy.typing import NDArray
 from numpy import ndarray, array, prod, arange
@@ -59,8 +59,6 @@ class ScalarField:
         self.latex: str = latex
         self.verbose: bool = verbose
         self.parent = parent
-        # if parent:
-        #     self.di = tuple(array(parent.input.boxsize, dtype=float) / array(parent.input.ncells, dtype=int))
         #setup cache
         self.caching: bool = caching
         self.cache: dict = {}
@@ -119,7 +117,7 @@ class ScalarField:
                 return array([
                     self.cache[i] if self.caching and i in self.cache.keys() else self.reader(self.file_names[i], i) for i in item_iters
                 ])
-            case x if type(x) in ArrayLike.types: return array([
+            case x if type(x) in Array.types: return array([
                 self.cache[i] if self.caching and i in self.cache.keys() else self.reader(self.file_names[i], i) for i in item
             ])
     def _from_folder_of_h5(self, path:str) -> None: 
@@ -154,8 +152,8 @@ class ScalarField:
             x_ticks = arange(0, self.parent.input.boxsize[0], self.parent.dx)
             y_ticks = arange(0, self.parent.input.boxsize[1], self.parent.dy)
         show(self[item], x=x_ticks, y=y_ticks, **kwargs)
-    def movie(self, norm='none', cmap=default_cmap, alter_func=None,**kwrg) -> None:
+    def movie(self, norm='none', cmap=default_cmap, func=None,**kwrg) -> None:
         @show_video(name=self.name, latex=self.latex, norm=norm, cmap=cmap)
-        def reveal_thyself(s,alter_func=alter_func, **kwargs): 
+        def reveal_thyself(s, func=func, **kwargs): 
             return array([self[i] for i in range(len(self))]) if alter_func is None else array([alter_func(self[i]) for i in range(len(self))])
         reveal_thyself(self if self.parent is None else self.parent, alter_func=alter_func,**kwrg)

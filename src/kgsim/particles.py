@@ -82,7 +82,7 @@ def video_particle_over(
     particle_markers = []
     for p in particles:
         #plot point
-        particle_markers.append(ax.scatter(p.x[0], p.y[0], color=color))
+        particle_markers.append(ax.scatter(p.x[0], p.y[0], color=color, s=3))
         #add particle data to trails
         segs, alphas = particle_trail_segments(p, 10, trail)
         trail_segments += list(segs)

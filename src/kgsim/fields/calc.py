@@ -3,7 +3,7 @@
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
 from kgsim.fields.scalar import ScalarField
 from kgsim.fields.vector import VectorField
-from kbasic.typing import ArrayLike, Number 
+from kbasic.typing import ArrayLike, Array, Number 
 from numpy import gradient, cumsum, ndarray, inf
 from numpy.typing import NDArray
 from typing import Optional
@@ -28,7 +28,7 @@ class NablaOperator:
         return cls.__ins
     def parse_grid_di(self, Field, di=None) -> tuple:
         match di:
-            case _ if type(di) in ArrayLike.types: return tuple(di)
+            case _ if type(di) in Array.types: return tuple(di)
             case _ if type(di) in Number.types: return (di, di, di) 
             case None:
                 match Field:
