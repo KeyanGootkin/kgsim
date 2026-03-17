@@ -1,7 +1,7 @@
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
 # >-|===|>                             Imports                             <|===|-<
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
-from kgsim.fields import ScalarField, VectorField
+from kgsim.fields import ScalarField, VectorField, Az
 from kgsim.simulation import GenericSimulation, SimulationGroup
 from kgsim.particles import Species, Particle
 from kgsim.dhybridr.io import dHybridRinput, dHybridRout
@@ -16,7 +16,8 @@ from kbasic.parsing import Folder
 from kbasic.user_input import yesno
 from os import system
 from h5py import File as h5File
-from numpy import mean, linspace, diff, exp, array, prod, inf, vstack
+from numpy import mean, linspace, diff, exp, array, prod, inf, vstack, nanmin, \
+                  nanmax
 from numpy.random import choice
 from glob import glob
 
@@ -254,6 +255,16 @@ class dHybridR(GenericSimulation):
             self.sp01 = dHybridRspecies(self, 1)
         self.iter = array(iters(self))
         self.time = array(times(self))
+    def magnetic_potential_extrema(self):
+        n, x = inf, -inf
+        for i in range(len(self)):
+            potential = Az(self.B.x[i], self.B.y[i], dx=self.dx, dy=self.dy)
+            yn = np.append(n, potential)
+            n = nanmin(yn)
+            yx = np.append(x, potential)
+            x = nanmax(yn)
+        return n, x
+
 class dHybridRgroup(SimulationGroup):
     def __init__(self, path, **sim_kwds):
         SimulationGroup.__init__(self, path, simtype=dHybridR, **sim_kwds)

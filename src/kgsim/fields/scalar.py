@@ -2,10 +2,11 @@
 # >-|===|>                             Imports                             <|===|-<
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
 from kbasic.parsing import File, Folder 
-from kbasic.typing import Array, ArrayLike
+from kbasic.typing import Array, ArrayLike, Number
 from kplot import show, default_cmap, show_video
+from functools import cached_property
 from numpy.typing import NDArray
-from numpy import ndarray, array, prod, arange
+from numpy import ndarray, array, prod, arange, nanmin, nanmax, inf, append
 from os.path import isdir, isfile 
 from glob import glob
 from typing import Optional, Self, Any
@@ -147,6 +148,22 @@ class ScalarField:
         self.array = array
         self.shape = array.shape
         self.ndims = len(self.shape)
+    @cached_property
+    def min(self) -> Number:
+        x = inf 
+        for frame in self:
+            y = append(frame, x)
+            x = nanmin(y)
+        return x
+    @cached_property
+    def max(self) -> Number:
+        x = -inf 
+        for frame in self:
+            y = append(frame, x)
+            x = nanmax(y)
+        return x
+    @cached_property
+    def extrema(self) -> tuple[Number]: return self.min, self.max
     def show(self, item:int, **kwargs) -> None: 
         if hasattr(self.parent, 'dx'):
             x_ticks = arange(0, self.parent.input.boxsize[0], self.parent.dx)
