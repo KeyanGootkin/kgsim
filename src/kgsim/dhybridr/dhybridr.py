@@ -1,7 +1,7 @@
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
 # >-|===|>                             Imports                             <|===|-<
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
-from kgsim.fields import ScalarField, VectorField
+from kgsim.fields import ScalarField, VectorField, Az
 from kgsim.simulation import GenericSimulation, SimulationGroup
 from kgsim.particles import Species, Particle
 from kgsim.dhybridr.io import dHybridRinput, dHybridRout
@@ -16,7 +16,8 @@ from kbasic.parsing import Folder
 from kbasic.user_input import yesno
 from os import system
 from h5py import File as h5File
-from numpy import mean, linspace, diff, exp, array, prod, inf, vstack
+from numpy import mean, linspace, diff, exp, array, prod, inf, vstack, nanmin, \
+                  nanmax, append
 from numpy.random import choice
 from glob import glob
 
@@ -230,17 +231,17 @@ class dHybridR(GenericSimulation):
         system(f"sh {submit_script.path}")
     def parse_output(self) -> None:
         self.out = dHybridRout(self.path+"/out")
-        kwargs = {'caching':self.caching, 'verbose':self.verbose, 'parent':self}
+        kwargs = {'caching':self.caching, 'verbose':self.verbose, 'parent':self, 'stats':Folder(f"{self.path}/stats")}
         self.B       = VectorField(self.path + "/Output/Fields/Magnetic/Total/", name="magnetic", latex="B", **kwargs)
         self.E       = VectorField(self.path + "/Output/Fields/Electric/Total/", name="electric", latex="E", **kwargs)
-        self.etx1    = ScalarField(self.path + "/Output/Phase/etx1/Sp01/", **kwargs)
-        self.pxx1    = ScalarField(self.path + "/Output/Phase/p1x1/Sp01/", **kwargs)
-        self.pyx1    = ScalarField(self.path + "/Output/Phase/p2x1/Sp01/", **kwargs)
-        self.pzx1    = ScalarField(self.path + "/Output/Phase/p3x1/Sp01/", **kwargs)
+        self.etx1    = ScalarField(self.path + "/Output/Phase/etx1/Sp01/", name='etx1', **kwargs)
+        self.pxx1    = ScalarField(self.path + "/Output/Phase/p1x1/Sp01/", name='pxx1', **kwargs)
+        self.pyx1    = ScalarField(self.path + "/Output/Phase/p2x1/Sp01/", name='pyx1', **kwargs)
+        self.pzx1    = ScalarField(self.path + "/Output/Phase/p3x1/Sp01/", name='pzx1', **kwargs)
         self.density = ScalarField(self.path + "/Output/Phase/x3x2x1/Sp01/", name="density", latex=r"$\rho$", **kwargs)
-        self.Pxx     = ScalarField(self.path + "/Output/Phase/PressureTen/Sp01/xx/", **kwargs)
-        self.Pyy     = ScalarField(self.path + "/Output/Phase/PressureTen/Sp01/yy/", **kwargs)
-        self.Pzz     = ScalarField(self.path + "/Output/Phase/PressureTen/Sp01/zz/", **kwargs)
+        self.Pxx     = ScalarField(self.path + "/Output/Phase/PressureTen/Sp01/xx/", name='Pxx', **kwargs)
+        self.Pyy     = ScalarField(self.path + "/Output/Phase/PressureTen/Sp01/yy/", name='Pyy', **kwargs)
+        self.Pzz     = ScalarField(self.path + "/Output/Phase/PressureTen/Sp01/zz/", name='Pzz', **kwargs)
         self.u       = VectorField(self.path + "/Output/Phase/FluidVel/Sp01/", name="bulkflow", latex="u", **kwargs)
         [
             self.energy_grid,
@@ -254,6 +255,16 @@ class dHybridR(GenericSimulation):
             self.sp01 = dHybridRspecies(self, 1)
         self.iter = array(iters(self))
         self.time = array(times(self))
+    def magnetic_potential_extrema(self):
+        n, x = inf, -inf
+        for i in verbose_bar(range(len(self)), self.verbose, total=len(self)):
+            potential = Az(self.B.x[i], self.B.y[i], dx=self.dx, dy=self.dy)
+            yn = append(n, potential)
+            n = nanmin(yn)
+            yx = append(x, potential)
+            x = nanmax(yn)
+        return n, x
+
 class dHybridRgroup(SimulationGroup):
     def __init__(self, path, **sim_kwds):
         SimulationGroup.__init__(self, path, simtype=dHybridR, **sim_kwds)
