@@ -1,12 +1,15 @@
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
 # >-|===|>                             Imports                             <|===|-<
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
-from kbasic.parsing import File, Folder 
+from kbasic.parsing import File, Folder, ensure_path
 from kbasic.typing import Array, ArrayLike, Number
+from kbasic.strings import purple
 from kplot import show, default_cmap, show_video
 from functools import cached_property
+from os import system
 from numpy.typing import NDArray
-from numpy import ndarray, array, prod, arange, nanmin, nanmax, inf, append
+from numpy import ndarray, array, prod, arange, nanmin, nanmax, nanmean, nanstd, \
+                  nanmedian, inf, append, float32, loadtxt, savetxt
 from os.path import isdir, isfile 
 from glob import glob
 from typing import Optional, Self, Any
@@ -49,8 +52,9 @@ class ScalarField:
     """
     def __init__(
         self, 
-        source: str|Folder|File|ArrayLike, 
-        parent = None,
+        source: str|Folder|File|Array, 
+        parent: Optional = None,
+        stats: Optional[Folder | str] = None,
         caching: bool = False,
         verbose: bool = False,
         name: Optional[str] = None, 
@@ -85,12 +89,13 @@ class ScalarField:
                 if extension=="h5": self._from_h5(source)
                 else: self._from_csv(source)
             #or if its already been read
-            case ndarray(): 
-                self.single = True
-                self._from_numpy(source)
-            case list(): 
+            case x if type(x) in Array.types:
                 self.single = True
                 self._from_numpy(array(source))
+            case _: raise TypeError(f"{source} of wrong type: {type(source)}")
+        # read the stats file
+        if not parent is None: self.stats = Folder(f"{self.parent.path}/stats")
+        if not self.stats is None: self._read_stats()
     def __len__(self) -> int: return 1 if self.single else len(self.file_names)
     def __iter__(self) -> Self:
         assert not self.single, "Cannot iterate through single scalar field"
@@ -129,7 +134,7 @@ class ScalarField:
         self.ndims = len(self.shape)
         self.size = prod(self.shape) * len(self)
     def _from_h5(self, file:str) -> None:
-        self.file = file.path if isinstance(file,File) else file
+        self.file = file.path if isinstance(file, File) else file
         self.array = self._read_h5_file(file, 0)
         self.shape = self.array.shape 
         self.ndims = len(self.shape)
@@ -148,14 +153,37 @@ class ScalarField:
         self.array = array
         self.shape = array.shape
         self.ndims = len(self.shape)
-    @cached_property
+    def _read_stats(self) -> None:
+        ensure_path(self.stats.path)
+        self.statsFile = File(f"{self.stats.path}/{self.name}.csv")
+        if self.statsFile.exists:
+            if self.verbose: print(purple(f"READING STATSFILE: {self.name}"))
+            self.stats.min, self.stats.max, self.stats.median, self.stats.mean, self.stats.std = loadtxt(
+                self.statsFile.path, delimiter=',', dtype=float32, skiprows=1
+            )
+            self.min = nanmin(self.stats.min)
+            self.max = nanmax(self.stats.max)
+        else:
+            if self.verbose: print(purple(f"CREATING STATSFILE: {self.name}"))
+            ensure_path(self.statsFile.parent.path)
+            data = array([
+                [nanmin(frame) for frame in self],
+                [nanmax(frame) for frame in self],
+                [nanmean(frame) for frame in self],
+                [nanmedian(frame) for frame in self],
+                [nanstd(frame) for frame in self],
+            ], dtype=float32)
+            self.min = nanmin(data[:,0])
+            self.max = nanmax(data[:,1])
+            savetxt(self.statsFile.path, data, delimiter=',', header="min,max,median,mean,std")
+    @cached_property #cached property only is used if self.min not set by stats file
     def min(self) -> Number:
         x = inf 
         for frame in self:
             y = append(frame, x)
             x = nanmin(y)
         return x
-    @cached_property
+    @cached_property #cached property only is used if self.max not set by stats file
     def max(self) -> Number:
         x = -inf 
         for frame in self:
@@ -163,7 +191,8 @@ class ScalarField:
             x = nanmax(y)
         return x
     @cached_property
-    def extrema(self) -> tuple[Number]: return self.min, self.max
+    def extrema(self) -> tuple[Number]:
+        return self.min, self.max
     def show(self, item:int, **kwargs) -> None: 
         if hasattr(self.parent, 'dx'):
             x_ticks = arange(0, self.parent.input.boxsize[0], self.parent.dx)

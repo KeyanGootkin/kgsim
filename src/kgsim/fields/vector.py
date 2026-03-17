@@ -2,6 +2,7 @@
 # >-|===|>                             Imports                             <|===|-<
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
 from kgsim.fields.scalar import ScalarField
+from kbasic.parsing import Folder
 from kbasic.typing import ArrayLike
 from kbasic.bar import verbose_bar
 from kplot import default_cmap, show_video
@@ -28,6 +29,7 @@ class VectorField:
     def __init__(
             self, 
             *components, 
+            stats: Optional[Folder|str] = None,
             caching: bool = False, 
             verbose: bool = False,
             name: Optional[str] = None, 
@@ -36,6 +38,7 @@ class VectorField:
             parallel: Optional[str] = 'z'
         ) -> None:
         latex = "".join([c for c in latex if c not in r"$\{}"])
+        self.stats = Folder(stats)
         self.name = name
         self.latex = latex 
         self.parent = parent
@@ -43,7 +46,7 @@ class VectorField:
             self.dx, self.dy = parent.dx, parent.dy
         self.verbose = verbose 
         self.caching = caching
-        child_kwargs = {'parent':parent, 'verbose':verbose, 'caching':caching}
+        child_kwargs = {'parent':parent, 'verbose':verbose, 'caching':caching, 'stats': stats}
         if len(components)==1 and type(path:=components[0])==str:
             components = (
                 ScalarField(path+"/x", name=name+"_x_component", latex=f"${latex}_x$", **child_kwargs), 
