@@ -2,7 +2,7 @@
 # >-|===|>                             Imports                             <|===|-<
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
 from kbasic.environment import simulationDir
-from kbasic.parsing import Folder, File
+from kbasic.parsing import Folder, File, ensure_path
 from kbasic.user_input import yesno
 from datetime import datetime
 from os.path import isdir
@@ -39,6 +39,7 @@ class GenericSimulation:
         self.dir = Folder(path)
         self.name = self.dir.name
         #setup log
+        ensure_path(f"{self.dir.path}/logs")
         self.log = File(f"{self.dir.path}/logs/{str(datetime.now()).replace(' ', '_')}")
         self.log.save(interactive=False)
         #if the given path doesn't exist, check the default simulation directory 

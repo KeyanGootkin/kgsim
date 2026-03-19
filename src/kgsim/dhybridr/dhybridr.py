@@ -219,13 +219,6 @@ class dHybridR(GenericSimulation):
                 self.start = time()
             self.ncores: int = int(prod(self.input.node_number))
             self.ncores_charged: int = self.ncores + self.ncores % 128
-            if self.out.exists:
-                self.runtime: float = self.out.runtime #run time as calculated from out file, in hours
-                self.corehours: float = self.runtime * prod(self.ncores)
-                self.corehours_charged: float = self.runtime * self.ncores_charged
-            if self.runtimer: 
-                print(blue(f"calc corehours: {time()-self.start}"))
-                self.start = time()
         self.restartDir = Folder(self.path+"/Restart")
     def __repr__(self) -> str: return self.name
     def __len__(self) -> int:
@@ -243,6 +236,14 @@ class dHybridR(GenericSimulation):
             self.energy_grid = vstack(self.energy_grid) 
             self.energy_pdf = vstack(self.energy_pdf) 
             self.dlne = vstack(self.dlne) 
+        elif attr in ['runtime', 'corehours', 'corehours_charged']:
+            if self.out.exists:
+                self.runtime: float = self.out.runtime #run time as calculated from out file, in hours
+                self.corehours: float = self.runtime * prod(self.ncores)
+                self.corehours_charged: float = self.runtime * self.ncores_charged
+            if self.runtimer: 
+                print(blue(f"calc corehours: {time()-self.start}"))
+                self.start = time()
     def create(self) -> None:
         self.template.copy(self.path)
         system(f"chmod 755 {self.path}/dHybridR")
