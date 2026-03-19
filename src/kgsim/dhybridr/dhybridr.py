@@ -232,6 +232,17 @@ class dHybridR(GenericSimulation):
         if self.output.exists: 
             return len(glob(self.output.path+"/Fields/Magnetic/Total/x/*.h5"))
         else: return 0
+    def __getattr__(self, attr: str):
+        if hasattr(self, attr): return super().__getattr__(attr)
+        if attr in ['energy_grid', 'energy_pdf', 'dlne']:
+            [ # if we haven't pulled these extract them
+                self.energy_grid,
+                self.energy_pdf,
+                self.dlne
+            ] = array([[*extract_energy(f)] for f in self.etx1.file_names], dtype=object).T
+            self.energy_grid = vstack(self.energy_grid) 
+            self.energy_pdf = vstack(self.energy_pdf) 
+            self.dlne = vstack(self.dlne) 
     def create(self) -> None:
         self.template.copy(self.path)
         system(f"chmod 755 {self.path}/dHybridR")
@@ -296,14 +307,6 @@ class dHybridR(GenericSimulation):
         if self.runtimer: 
             print(blue(f"read u: {time()-self.start}"))
             self.start = time()
-        [
-            self.energy_grid,
-            self.energy_pdf,
-            self.dlne
-        ] = array([[*extract_energy(f)] for f in self.etx1.file_names], dtype=object).T
-        self.energy_grid = vstack(self.energy_grid) 
-        self.energy_pdf = vstack(self.energy_pdf) 
-        self.dlne = vstack(self.dlne) 
         if self.runtimer: 
             print(blue(f"extract energy: {time()-self.start}"))
             self.start = time()
