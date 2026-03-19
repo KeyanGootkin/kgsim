@@ -4,6 +4,7 @@
 from kbasic.environment import simulationDir
 from kbasic.parsing import Folder, File
 from kbasic.user_input import yesno
+from datetime import datetime
 from os.path import isdir
 from matplotlib.pyplot import cm as cmaps
 
@@ -37,6 +38,9 @@ class GenericSimulation:
         self.path: str = path
         self.dir = Folder(path)
         self.name = self.dir.name
+        #setup log
+        self.log = File(f"{self.dir.path}/logs/{str(datetime.now()).replace(' ', '_')}")
+        self.log.save(interactive=False)
         #if the given path doesn't exist, check the default simulation directory 
         if not self.dir.exists: 
             if self.verbose: print(f"No simulation found in {path}, checking default simulation directory: {simulationDir.path}...")

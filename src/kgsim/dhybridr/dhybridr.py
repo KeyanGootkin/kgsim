@@ -11,7 +11,7 @@ from kgsim.templates import dHybridRtemplate
 
 from kplot import show, func_video
 from kbasic.bar import verbose_bar
-from kbasic.strings import purple
+from kbasic.strings import purple, blue
 from kbasic.parsing import Folder
 from kbasic.user_input import yesno
 
@@ -200,23 +200,32 @@ class dHybridR(GenericSimulation):
         self.compressed = compressed
         #setup simulation
         GenericSimulation.__init__(self, path, caching=caching, verbose=verbose, template=template)
-        if self.runtimer: print(blue(f"init GenericSimulation: {time()-self.start}"))
+        if self.runtimer: 
+            print(blue(f"init GenericSimulation: {time()-self.start}"))
+            self.start = time()
         #setup input, output, and restart folders
         self.parse_input()
-        if self.runtimer: print(blue(f"parse input: {time()-self.start}"))
+        if self.runtimer: 
+            print(blue(f"parse input: {time()-self.start}"))
+            self.start = time()
         self.output = Folder(self.path+"/Output")
         if not self.output.exists and verbose:
             if yesno("There is no output, would you like to run this simulation?\n"): 
                 self.run()
         elif self.output.exists: 
             self.parse_output()
-            if self.runtimer: print(blue(f"parse output: {time()-self.start}"))
+            if self.runtimer: 
+                print(blue(f"parse output: {time()-self.start}"))
+                self.start = time()
             self.ncores: int = int(prod(self.input.node_number))
             self.ncores_charged: int = self.ncores + self.ncores % 128
             if self.out.exists:
                 self.runtime: float = self.out.runtime #run time as calculated from out file, in hours
                 self.corehours: float = self.runtime * prod(self.ncores)
                 self.corehours_charged: float = self.runtime * self.ncores_charged
+            if self.runtimer: 
+                print(blue(f"calc corehours: {time()-self.start}"))
+                self.start = time()
         self.restartDir = Folder(self.path+"/Restart")
     def __repr__(self) -> str: return self.name
     def __len__(self) -> int:
@@ -239,30 +248,54 @@ class dHybridR(GenericSimulation):
         system(f"sh {submit_script.path}")
     def parse_output(self) -> None:
         self.out = dHybridRout(self.path+"/out")
-        if self.runtimer: print(f"read outfile: {time()-self.start}")
+        if self.runtimer: 
+            print(blue(f"read outfile: {time()-self.start}"))
+            self.start = time()
         kwargs = {'caching':self.caching, 'verbose':self.verbose, 'parent':self, 'stats':Folder(f"{self.path}/stats")}
         self.B       = VectorField(self.path + "/Output/Fields/Magnetic/Total/", name="magnetic", latex="B", **kwargs)
-        if self.runtimer: print(blue(f"read B: {time()-self.start}"))
+        if self.runtimer: 
+            print(blue(f"read B: {time()-self.start}"))
+            self.start = time()
         self.E       = VectorField(self.path + "/Output/Fields/Electric/Total/", name="electric", latex="E", **kwargs)
-        if self.runtimer: print(blue(f"read E: {time()-self.start}"))
+        if self.runtimer: 
+            print(blue(f"read E: {time()-self.start}"))
+            self.start = time()
         self.etx1    = ScalarField(self.path + "/Output/Phase/etx1/Sp01/", name='etx1', **kwargs)
-        if self.runtimer: print(blue(f"read etx1: {time()-self.start}"))
+        if self.runtimer: 
+            print(blue(f"read etx1: {time()-self.start}"))
+            self.start = time()
         self.pxx1    = ScalarField(self.path + "/Output/Phase/p1x1/Sp01/", name='pxx1', **kwargs)
-        if self.runtimer: print(blue(f"read pxx1: {time()-self.start}"))
+        if self.runtimer: 
+            print(blue(f"read pxx1: {time()-self.start}"))
+            self.start = time()
         self.pyx1    = ScalarField(self.path + "/Output/Phase/p2x1/Sp01/", name='pyx1', **kwargs)
-        if self.runtimer: print(blue(f"read pyx1: {time()-self.start}"))
+        if self.runtimer: 
+            print(blue(f"read pyx1: {time()-self.start}"))
+            self.start = time()
         self.pzx1    = ScalarField(self.path + "/Output/Phase/p3x1/Sp01/", name='pzx1', **kwargs)
-        if self.runtimer: print(blue(f"read pzx1: {time()-self.start}"))
+        if self.runtimer: 
+            print(blue(f"read pzx1: {time()-self.start}"))
+            self.start = time()
         self.density = ScalarField(self.path + "/Output/Phase/x3x2x1/Sp01/", name="density", latex=r"$\rho$", **kwargs)
-        if self.runtimer: print(blue(f"read density: {time()-self.start}"))
+        if self.runtimer: 
+            print(blue(f"read density: {time()-self.start}"))
+            self.start = time()
         self.Pxx     = ScalarField(self.path + "/Output/Phase/PressureTen/Sp01/xx/", name='Pxx', **kwargs)
-        if self.runtimer: print(blue(f"read Pxx: {time()-self.start}"))
+        if self.runtimer: 
+            print(blue(f"read Pxx: {time()-self.start}"))
+            self.start = time()
         self.Pyy     = ScalarField(self.path + "/Output/Phase/PressureTen/Sp01/yy/", name='Pyy', **kwargs)
-        if self.runtimer: print(blue(f"read Pyy: {time()-self.start}"))
+        if self.runtimer: 
+            print(blue(f"read Pyy: {time()-self.start}"))
+            self.start = time()
         self.Pzz     = ScalarField(self.path + "/Output/Phase/PressureTen/Sp01/zz/", name='Pzz', **kwargs)
-        if self.runtimer: print(blue(f"read Pzz: {time()-self.start}"))
+        if self.runtimer: 
+            print(blue(f"read Pzz: {time()-self.start}"))
+            self.start = time()
         self.u       = VectorField(self.path + "/Output/Phase/FluidVel/Sp01/", name="bulkflow", latex="u", **kwargs)
-        if self.runtimer: print(blue(f"read u: {time()-self.start}"))
+        if self.runtimer: 
+            print(blue(f"read u: {time()-self.start}"))
+            self.start = time()
         [
             self.energy_grid,
             self.energy_pdf,
@@ -271,8 +304,14 @@ class dHybridR(GenericSimulation):
         self.energy_grid = vstack(self.energy_grid) 
         self.energy_pdf = vstack(self.energy_pdf) 
         self.dlne = vstack(self.dlne) 
+        if self.runtimer: 
+            print(blue(f"extract energy: {time()-self.start}"))
+            self.start = time()
         if self.input.sp01.track_dump:
             self.sp01 = dHybridRspecies(self, 1)
+        if self.runtimer: 
+            print(blue(f"set species: {time()-self.start}"))
+            self.start = time()
         self.iter = array(iters(self))
         self.time = array(times(self))
     def magnetic_potential_extrema(self):

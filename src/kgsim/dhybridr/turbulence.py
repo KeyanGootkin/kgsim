@@ -25,7 +25,9 @@ line = lambda x, m, b: m*x+b
 def field_dot(A: ndarray, B: ndarray) -> ndarray: return nsum(A * B, axis=0)
 def efficiency(E, f, high_energy_threshold):
     total_energy = sum(E[:-1]*f[:-1]*diff(log10(E)))
-    non_thermal_energy = sum(E[high_energy_threshold:]*f[high_energy_threshold:]*diff(log10(E))[high_energy_threshold-1:])
+    non_thermal_energy = sum(
+        E[high_energy_threshold:]*f[high_energy_threshold:]*diff(log10(E))[high_energy_threshold-1:]
+    )
     return non_thermal_energy / total_energy
 def non_thermal_slope(E, f, mach):
     fitting_zone = where_between(E, 5*mach**2, 10*mach**2)
@@ -288,9 +290,13 @@ class TurbSim(dHybridR):
             caching: bool = False,
             verbose: bool = False,
             template: Folder = dHybridRtemplate,
-            compressed: bool = False
+            compressed: bool = False,
+            timeinit: bool = False
         ) -> None:
-        dHybridR.__init__(self, path, caching=caching, verbose=verbose, template=template, compressed=compressed)
+        dHybridR.__init__(self, 
+            path, caching=caching, verbose=verbose, template=template, 
+            compressed=compressed, timeinit=timeinit
+        )
         self.config = dHybridRconfig(self, mode='turb')
         self.initializer = TurbInit(self)
 class TurbGroup(SimulationGroup):
@@ -304,4 +310,6 @@ class TurbGroup(SimulationGroup):
         machs = [x.mach for x in self.simulations.values()]
         return [cmap(log2(m/min(machs))/log2((max(machs)+.1)/min(machs))) for m in machs]
     def labeler(self): return [
-        r"$\mathcal{M} = $"+f"{int(x.mach) if x.mach.is_integer() else texfraction(x.mach)}" for x in self.simulations.values()]
+        r"$\mathcal{M} = $"+\
+        f"{int(x.mach) if x.mach.is_integer() else texfraction(x.mach)}" 
+    for x in self.simulations.values()]
