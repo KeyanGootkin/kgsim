@@ -14,12 +14,14 @@ from kbasic.bar import verbose_bar
 from kbasic.strings import purple
 from kbasic.parsing import Folder
 from kbasic.user_input import yesno
+
+from time import time
+from glob import glob
 from os import system
 from h5py import File as h5File
 from numpy import mean, linspace, diff, exp, array, prod, inf, vstack, nanmin, \
                   nanmax, append
 from numpy.random import choice
-from glob import glob
 
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
 # >-|===|>                           Definitions                           <|===|-<
@@ -190,19 +192,25 @@ class dHybridR(GenericSimulation):
             caching: bool = False,
             verbose: bool = False,
             template: Folder = dHybridRtemplate,
-            compressed: bool = False
+            compressed: bool = False,
+            timeinit: bool = False
         ) -> None:
+        self.runtimer = timeinit
+        if self.runtimer: self.start = time()
         self.compressed = compressed
         #setup simulation
         GenericSimulation.__init__(self, path, caching=caching, verbose=verbose, template=template)
+        if self.runtimer: print(blue(f"init GenericSimulation: {time()-self.start}"))
         #setup input, output, and restart folders
         self.parse_input()
+        if self.runtimer: print(blue(f"parse input: {time()-self.start}"))
         self.output = Folder(self.path+"/Output")
         if not self.output.exists and verbose:
             if yesno("There is no output, would you like to run this simulation?\n"): 
                 self.run()
         elif self.output.exists: 
             self.parse_output()
+            if self.runtimer: print(blue(f"parse output: {time()-self.start}"))
             self.ncores: int = int(prod(self.input.node_number))
             self.ncores_charged: int = self.ncores + self.ncores % 128
             if self.out.exists:
@@ -231,18 +239,30 @@ class dHybridR(GenericSimulation):
         system(f"sh {submit_script.path}")
     def parse_output(self) -> None:
         self.out = dHybridRout(self.path+"/out")
+        if self.runtimer: print(f"read outfile: {time()-self.start}")
         kwargs = {'caching':self.caching, 'verbose':self.verbose, 'parent':self, 'stats':Folder(f"{self.path}/stats")}
         self.B       = VectorField(self.path + "/Output/Fields/Magnetic/Total/", name="magnetic", latex="B", **kwargs)
+        if self.runtimer: print(blue(f"read B: {time()-self.start}"))
         self.E       = VectorField(self.path + "/Output/Fields/Electric/Total/", name="electric", latex="E", **kwargs)
+        if self.runtimer: print(blue(f"read E: {time()-self.start}"))
         self.etx1    = ScalarField(self.path + "/Output/Phase/etx1/Sp01/", name='etx1', **kwargs)
+        if self.runtimer: print(blue(f"read etx1: {time()-self.start}"))
         self.pxx1    = ScalarField(self.path + "/Output/Phase/p1x1/Sp01/", name='pxx1', **kwargs)
+        if self.runtimer: print(blue(f"read pxx1: {time()-self.start}"))
         self.pyx1    = ScalarField(self.path + "/Output/Phase/p2x1/Sp01/", name='pyx1', **kwargs)
+        if self.runtimer: print(blue(f"read pyx1: {time()-self.start}"))
         self.pzx1    = ScalarField(self.path + "/Output/Phase/p3x1/Sp01/", name='pzx1', **kwargs)
+        if self.runtimer: print(blue(f"read pzx1: {time()-self.start}"))
         self.density = ScalarField(self.path + "/Output/Phase/x3x2x1/Sp01/", name="density", latex=r"$\rho$", **kwargs)
+        if self.runtimer: print(blue(f"read density: {time()-self.start}"))
         self.Pxx     = ScalarField(self.path + "/Output/Phase/PressureTen/Sp01/xx/", name='Pxx', **kwargs)
+        if self.runtimer: print(blue(f"read Pxx: {time()-self.start}"))
         self.Pyy     = ScalarField(self.path + "/Output/Phase/PressureTen/Sp01/yy/", name='Pyy', **kwargs)
+        if self.runtimer: print(blue(f"read Pyy: {time()-self.start}"))
         self.Pzz     = ScalarField(self.path + "/Output/Phase/PressureTen/Sp01/zz/", name='Pzz', **kwargs)
+        if self.runtimer: print(blue(f"read Pzz: {time()-self.start}"))
         self.u       = VectorField(self.path + "/Output/Phase/FluidVel/Sp01/", name="bulkflow", latex="u", **kwargs)
+        if self.runtimer: print(blue(f"read u: {time()-self.start}"))
         [
             self.energy_grid,
             self.energy_pdf,
@@ -258,6 +278,7 @@ class dHybridR(GenericSimulation):
     def magnetic_potential_extrema(self):
         n, x = inf, -inf
         for i in verbose_bar(range(len(self)), self.verbose, total=len(self)):
+            const = 0 if i==0 else -self.E.z[i-1][0,0]*self.dt
             potential = Az(self.B.x[i], self.B.y[i], dx=self.dx, dy=self.dy)
             yn = append(n, potential)
             n = nanmin(yn)

@@ -1,13 +1,17 @@
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
 # >-|===|>                             Imports                             <|===|-<
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
+from kgsim.fields.scalar import ScalarField
+
 from kbasic.strings import purple
-from kplot.cmaps import lch_cmap, auto_norm
+from kplot.cmaps import lch_cmap, auto_norm, Cmap, Norm
 from kplot.plot import periodic_lines, line2segments
 from kplot.image import show, move_image
 from kplot.movie import func_video
+from typing import Optional
 from numpy import linspace, arange, ndarray, asarray, pad
 from matplotlib.collections import LineCollection
+from matplotlib.axes import Axes
 
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
 # >-|===|>                             Classes                             <|===|-<
@@ -58,12 +62,13 @@ def particle_trail_segments(p: Particle, i: int, N: int):
 def video_particle_over(
         vname: str,
         particles: list[Particle],
-        background: ndarray,
-        ax = None,
-        trail: int = 1000, # length of the particle trails
-        color = 'white',
-        cmap = lch_cmap(hue=(-100,100)),
-        norm = 'linear',
+        background: ndarray|ScalarField,
+        ax: Optional[Axes] = None,
+        axis_off: bool = False,
+        trail: int = 200, # length of the particle trails
+        color: tuple | str = 'white',
+        cmap: Cmap | str = lch_cmap(hue=(-100,100)),
+        norm: Norm | str = 'linear',
         verbose: bool = True,
 ):  
     species = particles[0].species 
@@ -72,9 +77,13 @@ def video_particle_over(
     Lx, Ly = sim.input.boxsize
     x_grid = arange(0, Lx, sim.dx)
     y_grid = arange(0, Ly, sim.dy)
-    norm = auto_norm(norm, background) if isinstance(norm, str) else norm
+    norm = auto_norm(norm, background)
     #plot background
-    fig,ax,img = show(background[0], ax=ax, norm=norm, x=x_grid, y=y_grid, cmap=cmap)
+    fig,ax,img = show(
+        background[0], 
+        ax=ax, norm=norm, x=x_grid, y=y_grid, cmap=cmap, colorbar=False
+        )
+    if axis_off: ax.set_axis_off()
     #setup trails
     trail_segments = []
     trail_alphas = []
@@ -105,7 +114,7 @@ def video_particle_over(
         if asarray(trail_segments).size == 0: return None
         lc.set_segments(trail_segments)
         lc.set_alpha(trail_alphas)
-    func_video(vname, fig, update, len(background)-1, verbose=verbose)
+    func_video(vname, fig, update, len(background)-1, verbose=verbose, frames=f'~/.temp/{video_name}')
 def follow_particle_video(
         vname: str, part: Particle, background: ndarray, 
         window=20, 
@@ -122,7 +131,7 @@ def follow_particle_video(
     x_grid = arange(-(window+1) * sim.dx, Lx + (window+1) * sim.dx, sim.dx)
     y_grid = arange(-(window+1) * sim.dy, Ly + (window+1) * sim.dy, sim.dy)
     if verbose: print(purple("Calculating norm..."))
-    norm = auto_norm(norm, background) if isinstance(norm, str) else norm
+    norm = auto_norm(norm, background)
     #plot background
     if verbose: print(purple("Initializing plot..."))
     fig,ax,img = show(
