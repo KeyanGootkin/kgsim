@@ -1,6 +1,9 @@
-# !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
-# >-|===|>                             Imports                             <|===|-<
-# !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
+"""create particles"""
+# !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
+# >-|===|>                                    Imports                                     <|===|-<
+# !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
+from typing import Optional
+
 from kgsim.fields.scalar import ScalarField
 
 from kbasic.strings import purple
@@ -8,44 +11,45 @@ from kplot.cmaps import lch_cmap, auto_norm, Cmap, Norm
 from kplot.plot import periodic_lines, line2segments
 from kplot.image import show, move_image
 from kplot.movie import func_video
-from typing import Optional
 from numpy import linspace, arange, ndarray, asarray, pad
 from matplotlib.collections import LineCollection
 from matplotlib.axes import Axes
 
-# !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
-# >-|===|>                             Classes                             <|===|-<
-# !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
+# !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
+# >-|===|>                                    Classes                                     <|===|-<
+# !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
 class Species:
     def __init__(
             self,
             name: str,
             m: float = 1.,
             q: float = 1.
-        ):
+        ) -> None:
         """docstring"""
         self.name = name
-        self.m = m 
-        self.q = q 
+        self.m = m
+        self.q = q
         self.mtq = m/q # mass to charge ratio
-        self.qtm = q/m # charge to mass ratio       
-    def __repr__(self): return self.name
+        self.qtm = q/m # charge to mass ratio
+    def __repr__(self) -> str: return self.name
 class Particle:
     def __init__(
             self,
-            species: Species,
-            tag: str
-        ):
+            species: Species = Species("default"),
+            tag: Optional[str] = None
+        ) -> None:
         """docstring"""
-        self.species = species 
+        self.species = species
         self.tag = tag
-    def __repr__(self): return f"{self.species.name}: {self.tag}"
+        self.x, self.y, self.z = 0, 0, 0
+    def __repr__(self) -> str: return f"{self.species.name}: {self.tag}"
 
-# !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
-# >-|===|>                            Functions                            <|===|-<
-# !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
-def particle_trail_segments(p: Particle, i: int, N: int):
-    species = p.species 
+# !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
+# >-|===|>                                   Functions                                    <|===|-<
+# !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
+def particle_trail_segments(p: Particle, i: int, N: int) -> None:
+    """docstring"""
+    species = p.species
     sim = species.parent
     i_start = i - N if N<i else 0
     N_trail = N if N<i else i
@@ -70,7 +74,8 @@ def video_particle_over(
         cmap: Cmap | str = lch_cmap(hue=(-100,100)),
         norm: Norm | str = 'linear',
         verbose: bool = True,
-):  
+    ) -> None:
+    """docstring"""
     species = particles[0].species 
     sim = species.parent
     #setup background
@@ -114,7 +119,10 @@ def video_particle_over(
         if asarray(trail_segments).size == 0: return None
         lc.set_segments(trail_segments)
         lc.set_alpha(trail_alphas)
-    func_video(vname, fig, update, len(background)-1, verbose=verbose, frames=f'~/.temp/{video_name}')
+    func_video(
+        vname, fig, update, len(background)-1,
+        verbose=verbose, frames=f'~/.temp/{video_name}'
+    )
 def follow_particle_video(
         vname: str, part: Particle, background: ndarray, 
         window=20, 
@@ -122,9 +130,10 @@ def follow_particle_video(
         ax=None,
         cmap=lch_cmap(luminosity=(.2,1),hue=(-100,100)),
         verbose: bool = True
-        ):
+    ) -> None:
+    """docstring"""
     if verbose: print(purple("Loading..."))
-    species = part.species 
+    species = part.species
     sim = species.parent
     #setup background
     Lx, Ly = sim.input.boxsize
