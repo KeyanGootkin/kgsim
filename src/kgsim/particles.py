@@ -1,4 +1,4 @@
-"""create particles"""
+"""particle support"""
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
 # >-|===|>                                    Imports                                     <|===|-<
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
@@ -6,12 +6,14 @@ from typing import Optional
 
 from kgsim.fields.scalar import ScalarField
 
+# from kbasic.typing import Array, Number
 from kbasic.strings import purple
 from kplot.cmaps import lch_cmap, auto_norm, Cmap, Norm
 from kplot.plot import periodic_lines, line2segments
 from kplot.image import show, move_image
 from kplot.movie import func_video
-from numpy import linspace, arange, ndarray, asarray, pad
+from numpy import linspace, arange, array, ndarray, asarray, pad
+from numpy.typing import NDArray, ArrayLike
 from matplotlib.collections import LineCollection
 from matplotlib.axes import Axes
 
@@ -36,21 +38,47 @@ class Particle:
     def __init__(
             self,
             species: Species = Species("default"),
-            tag: Optional[str] = None
+            tag: Optional[str] = "0",
+            x: ArrayLike = array([]),
+            y: ArrayLike = array([]),
+            z: ArrayLike = array([]),
+            vx: ArrayLike = array([]),
+            vy: ArrayLike = array([]),
+            vz: ArrayLike = array([]),
+            t: ArrayLike = array([])
         ) -> None:
         """docstring"""
         self.species = species
+        self.parent = species.parent
         self.tag = tag
-        self.x, self.y, self.z = 0, 0, 0
-    def __repr__(self) -> str: return f"{self.species.name}: {self.tag}"
+        self.t = array(t)
+        self.x, self.y, self.z = array(x), array(y), array(z)
+        self.vx, self.vy, self.vz = array(vx), array(vy), array(vz)
+        self.position: tuple = (self.x, self.y, self.z)
+        self.velocity: tuple = (self.vx, self.vy, self.vz)
 
+    def __repr__(self) -> str: return f"{self.species.name}: {self.tag}"
+    def trail_segments(self, i: int, n_trail: int = 100) -> tuple[list]:
+        i_start = i - n_trail if n_trail<i else 0
+        if n_trail>i: ntrail = i
+        coords = None
+    def distance_from(self, target_coords: tuple, ind: Optional[int] = None):
+        """docstring"""
+        assert len(target_coords)==len(self.position)
+class Population:
+    def __init__(self, particles) -> None:
+        self.particles = particles
+    def __new__(cls, particles) -> None:
+        match particles:
+            case Population(): return particles
+            case [Particle(), *_]: super().__new__(cls)
+            case _: raise TypeError("Population's can only be instatiated with a list of particles")
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
 # >-|===|>                                   Functions                                    <|===|-<
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
-def particle_trail_segments(p: Particle, i: int, N: int) -> None:
+def particle_trail_segments(p: Particle, i: int, N: int) -> tuple[list]:
     """docstring"""
-    species = p.species
-    sim = species.parent
+    sim = p.parent
     i_start = i - N if N<i else 0
     N_trail = N if N<i else i
     x, y = p.x[i_start: i], p.y[i_start: i]
@@ -65,7 +93,7 @@ def particle_trail_segments(p: Particle, i: int, N: int) -> None:
     return segments, segment_alphas
 def video_particle_over(
         vname: str,
-        particles: list[Particle],
+        particles: list[Particle] | Population,
         background: ndarray|ScalarField,
         ax: Optional[Axes] = None,
         axis_off: bool = False,
@@ -76,8 +104,8 @@ def video_particle_over(
         verbose: bool = True,
     ) -> None:
     """docstring"""
-    species = particles[0].species 
-    sim = species.parent
+    pop = Population(particles)
+    sim = pop[0].parent
     #setup background
     Lx, Ly = sim.input.boxsize
     x_grid = arange(0, Lx, sim.dx)
@@ -121,7 +149,7 @@ def video_particle_over(
         lc.set_alpha(trail_alphas)
     func_video(
         vname, fig, update, len(background)-1,
-        verbose=verbose, frames=f'~/.temp/{video_name}'
+        verbose=verbose, frames=f'~/.temp/{vname}'
     )
 def follow_particle_video(
         vname: str, part: Particle, background: ndarray, 
