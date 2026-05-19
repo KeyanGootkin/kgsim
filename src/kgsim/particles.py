@@ -5,6 +5,7 @@
 from typing import Optional
 
 from kgsim.fields.scalar import ScalarField
+from kgsim.fields.vector import VectorField
 
 from kbasic.typing import Number, Array
 from kbasic.strings import purple
@@ -19,6 +20,39 @@ from numpy.typing import ArrayLike
 from matplotlib.collections import LineCollection
 from matplotlib.figure import Figure
 from matplotlib.axes import Axes
+
+# !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
+# >-|===|>                                   Functions                                    <|===|-<
+# !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
+def particle_interp(x: float, y: float, dx, dy, field):
+    """blame colby if this fucks up >:)"""
+    # position in cells
+    xc, yc = x*dx, y*dy
+    # grid points
+    i = int(xc//1)
+    j = int(yc//1)
+    # weight factors
+    wx = xc-i
+    wy = yc-j
+    # weighted terms
+    fbl = field[i, j] * (1-wx) * (1-wy)
+    ftl = field[i, j+1] * (1-wx) * wy
+    ftr = field[i+1, j+1] * wx * wy
+    fbr = field[i+1, j] * wx * (1-wy)
+    return fbl+ftl+ftr+fbr
+def lorentz_boost(u, v, c=100):
+    """
+    to confirm im not dumb http://hyperphysics.phy-astr.gsu.edu/hbase/Relativ/veltran.html
+    u is the velocity measured in the first frame
+    v is the velocity of the second frame in the first frame
+    this works for kbasic.Vector's as well as scalars as well as arrays of vectors
+    """
+    return (u - v) / (1-abs(u)*abs(v)*c**-2)
+def ExB_boost(u, E, B, c=100):
+    """lorentz boost in the ExB drift frame"""
+    v = E.cross(B) / abs(B)**2
+    return lorentz_boost(u, v, c=c)
+
 
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
 # >-|===|>                                    Classes                                     <|===|-<
@@ -100,7 +134,6 @@ class Particle:
         segments = [s for x, y in zip(xs, ys) for s in line2segments(x, y)]
         segment_alphas = [ai for a in alphas for ai in a]
         return segments, segment_alphas
-
     def plot_trail(
         self,
         start: int = 0,
@@ -133,33 +166,52 @@ class Particle:
             fname = save if isinstance(save, str) else 'default'
             fig.savefig(fname)
         return fig, ax, lc
-
     def distance_from(self, target_coords: tuple | Vector):
         """docstring"""
         tc = Vector(target_coords)
         assert tc.ndims==self.position.ndims
         return abs(tc - self.position)
+    def interpolate_onto(self, field) -> Array:
+        """docstring"""
+        dx = self.parent.dx
+        dy = self.parent.dy
+        match field:
+            case ScalarField():
+                field = [fi for i in range(self.species.pipsi) for fi in field]
+                return array([
+                    particle_interp(xi, yi, dx, dy, fi) for xi, yi, fi in zip(self.x, self.y, field)
+                ])
+            case VectorField():
+                comps = []
+                for fieldi in field.components:
+                    comp_i = [fi for i in range(self.species.pipsi) for fi in fieldi]
+                    ci = array([
+                        particle_interp(xi, yi, dx, dy, fi)\
+                        for xi, yi, fi in zip(self.x, self.y, comp_i)
+                    ])
+                    comps.append(ci)
+                print(comps)
+                return Vector(*comps)
+        raise TypeError("giveme a better field pls")
 
 class Population:
     def __init__(self, particles) -> None:
         self.particles = particles
         self.tags = [p.tag for p in self.particles]
+    def __new__(cls, particles):
+        match particles:
+            case Population(): return particles
+            case _:
+                return super().__new__(cls)
     def __getitem__(self, item) -> Particle | list[Particle]:
         match item:
             case int()|slice():
                 return self.particles[item]
             case str():
                 return self.particles[self.tags==item]
-            case _ if type(item) in Array.types:
+            case Array():
                 return [self[i] for i in item]
-    def __new__(cls, particles) -> None:
-        match particles:
-            case Population():
-                return particles
-            case [Particle(), *_]:
-                super().__new__(cls)
-            case _:
-                raise TypeError("Populations can only be instatiated with a list of particles")
+
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
 # >-|===|>                                   Functions                                    <|===|-<
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==

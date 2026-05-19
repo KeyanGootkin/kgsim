@@ -1,68 +1,105 @@
-# !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
-# >-|===|>                             Imports                             <|===|-<
-# !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
-from kbasic.environment import simulationDir
-from kbasic.parsing import Folder, File, ensure_path
-from kbasic.user_input import yesno
+"""implement base simulation characteristics"""
+# !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
+# >-|===|>                                    Imports                                     <|===|-<
+# !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
 from datetime import datetime
 from os.path import isdir
+import logging
+from kgsim.exceptions import SimulationNotFoundError
+from kbasic.environment import simulationDir
+from kbasic.parsing import Folder, File, ensure_path, configure_log
+from kbasic.user_input import yesno
 from matplotlib.pyplot import cm as cmaps
 
-# !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
-# >-|===|>                             Classes                             <|===|-<
-# !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
+# !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
+# >-|===|>                                   Functions                                    <|===|-<
+# !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
+def locate_sim(path: str) -> Folder:
+    """
+    find a simulation
+    
+    Args
+    ----
+    path: str - the location of the sim you want to find
+
+    Returns
+    -------
+    dr: Folder - a pathlib-esque folder containing the simulation
+
+    Raises
+    ------
+    SimulationNotFoundError - if can't find path
+    """
+    dr = Folder(path)
+    if dr.exists: return dr
+    # else check the default sim path
+    dr = simulationDir / path
+    if dr.exists: return dr
+    raise SimulationNotFoundError(f"could not find {path=} or {(simulationDir / path)=}")
+
+# !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
+# >-|===|>                                    Classes                                     <|===|-<
+# !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
 class GenericSimulation:
     def __init__(
-            self, 
-            path:str, 
-            template:str|Folder=None,
-            caching:bool=False,
-            verbose:bool=True,
+            self,
+            path: str,
+            template: str|Folder= None,
+            caching: bool= False,
+            verbose: bool= False,
+            debug: bool = False,
         ) -> None:
         """A generic class for all simulations
 
         Args:
             path (str): the location of the simulation
-            template (str | Folder, optional): the location of the template this simulation is based on. Defaults to None.
-            caching (bool, optional): whether or not to set up a cache to store data in. Defaults to False.
+            template (str | Folder, optional): the location of the template this simulation is 
+            based on. Defaults to None.
+            caching (bool, optional): whether or not to set up a cache to store data in. 
+            Defaults to False.
             verbose (bool, optional): whether to print a bunch of bullshit. Defaults to True.
         """
-        self.template = template
-        self.verbose = verbose
-        #setup cache
-        if self.verbose: print("caching is ON..." if caching else "caching is OFF...")
-        self.caching = caching 
-        self.cache: dict = {}
-        #make sure the simulation exists
-        if verbose: print(f"Finding path: {path}")
-        self.path: str = path
-        self.dir = Folder(path)
-        self.name = self.dir.name
+        try:
+            self.dir = locate_sim(path)
+            self.path = self.dir.path
+            self.name = self.dir.name
+        except SimulationNotFoundError:
+            if template and yesno(f"""
+            Can't find {path}...
+            would you like to create this simulation from template: {template}?
+            """):
+                template.copy(path)
+                self.dir = Folder(path)
+                self.path = self.dir.path
+                self.name = self.dir.name
         #setup log
-        ensure_path(f"{self.dir.path}/logs")
-        self.log = File(f"{self.dir.path}/logs/{str(datetime.now()).replace(' ', '_')}")
-        self.log.save(interactive=False)
-        #if the given path doesn't exist, check the default simulation directory 
-        if not self.dir.exists: 
-            if self.verbose: print(f"No simulation found in {path}, checking default simulation directory: {simulationDir.path}...")
-            default_path: str = f"{simulationDir.path}/{self.name}"
-            self.path = default_path
-            self.dir = Folder(self.path)
-            #if simulation isn't in default simulation directory either copy a template to that location or raise an error
-            if not self.dir.exists:
-                if yesno(f"No such simulation exists, would you like to copy \ntemplate: {template.name}, \nto location: {self.path}?\n"):
-                    self.create()
-                else: raise FileNotFoundError("Please create simulation and try again")
-    
-    def create(self):
-        self.template.copy(self.path)
+        ensure_path(f"{self.path}/log")
+        self.log = configure_log(
+            f"{__package__}.{self.__class__.__name__}.{self.name}",
+            level=logging.DEBUG if debug else logging.INFO,
+            file=f"{self.path}/log/{datetime.now().isoformat()}.log",
+            file_level=logging.DEBUG if debug else logging.INFO,
+            console_level=logging.DEBUG if debug else logging.INFO if verbose else None
+        )
+        self.log.info(f"initializing simulation -> {self.name}")
+        self.template = template
+        self.log.info(f"from template -> {template.name}")
+        self.verbose = verbose
+        self.debug = debug
+        #setup cache
+        self.log.info("caching is ON..." if caching else "caching is OFF...")
+        self.caching = caching
+        self.cache: dict = {}
 
 class SimulationGroup(Folder):
-    def __init__(self, path: str, simtype = GenericSimulation, **sim_kwds) -> None: 
+    def __init__(self, path: str, simtype = GenericSimulation, **sim_kwds) -> None:
         Folder.__init__(self, path)
-        self.simulations = {x.split('/')[-1]:simtype(x, **sim_kwds) for x in self.children if isdir(x) and File(x+"/input/input").exists}
-    
-    def __repr__(self) -> str: return self.name+'\n'+'-'*20+"\n"+"\n".join([f"{k}: {repr(v)}" for k, v in self.simulations.items()])
+        self.simulations = {x.path.split('/')[-1]:simtype(x, **sim_kwds) for x in self.children \
+            if isdir(x) and File(x+"/input/input").exists}
+    def __repr__(self) -> str:
+        return self.name+'\n'+'-'*20+"\n"+"\n".join([
+            f"{k}: {repr(v)}" for k, v in self.simulations.items()
+        ])
     def __len__(self) -> int: return len(self.simulations)
     def __getitem__(self, item): return self.simulations[item]
     def __iter__(self):
@@ -76,14 +113,40 @@ class SimulationGroup(Folder):
         else: raise StopIteration
 
     def sort_by(self, key: str) -> None:
-        new_simulations = {v.__dict__[key]: v for k, v in sorted(self.simulations.items(), key = lambda item: item[1].__dict__[key])}
-        if len(new_simulations) != len(self.simulations): raise KeyError(f"the simulation value: {key} is not unique in {self.name}, please provide a unique key to sort by.")
+        """docstring"""
+        new_simulations = {
+            v.__dict__[key]: v \
+            for k, v in sorted(
+                self.simulations.items(), key = lambda item: item[1].__dict__[key]
+            )
+        }
+        if len(new_simulations) != len(self.simulations):
+            raise KeyError(f"""
+                the simulation value: {key} is not unique in {self.name}, please provide a
+                 unique key to sort by.
+            """)
         self.simulations = new_simulations
 
-    def colorer(self, cmap=cmaps.plasma) -> list: return [cmap(i / (len(self)+.1)) for i in range(len(self))]
-    def labeler(self) -> list[str]: return [x.name for x in self.simulations.values()]
-    def plotter(self, cmap=cmaps.plasma) -> list[tuple]: return [(l_i, c_i, sim_i) for l_i, c_i, sim_i in zip(self.labeler(), self.colorer(cmap=cmap), self.simulations.values())]
-
-    def items(self): return self.simulations.items()
-    def values(self): return self.simulations.values()
-    def keys(self): return self.simulations.keys()
+    def colorer(self, cmap=cmaps.plasma) -> list:
+        """docstring"""
+        return [cmap(i / (len(self)+.1)) for i in range(len(self))]
+    def labeler(self) -> list[str]:
+        """docstring"""
+        return [x.name for x in self.simulations.values()]
+    def plotter(self, cmap=cmaps.plasma) -> list[tuple]:
+        """docstring"""
+        return [
+            (l_i, c_i, sim_i) \
+            for l_i, c_i, sim_i in zip(
+                self.labeler(), self.colorer(cmap=cmap), self.simulations.values()
+            )
+        ]
+    def items(self):
+        """docstring"""
+        return self.simulations.items()
+    def values(self):
+        """docstring"""
+        return self.simulations.values()
+    def keys(self):
+        """docstring"""
+        return self.simulations.keys()

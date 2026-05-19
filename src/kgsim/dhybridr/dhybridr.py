@@ -5,6 +5,7 @@
 from time import time
 from glob import glob
 from os import system
+from os.path import exists
 from h5py import File as h5File
 from numpy import mean, linspace, diff, exp, array, prod, inf, vstack, nanmin, \
                   nanmax, append
@@ -20,9 +21,8 @@ from kgsim.templates import dHybridRtemplate
 
 from kplot import show, func_video
 from kbasic.bar import verbose_bar
-from kbasic.strings import purple, blue
+from kbasic.strings import purple
 from kbasic.parsing import Folder
-from kbasic.user_input import yesno
 from kbasic.vectors import Vector
 
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
@@ -67,7 +67,6 @@ def particle_video(
     fname: str,
     background = None,
     res: int = None,
-    zfill: int = 10,
     dpi: int = 250,
     # paticle plotting keywords
     color = 'red',
@@ -83,27 +82,31 @@ def particle_video(
     if not res: res = sim.input.sp01.track_nstore
     dnp = sim.input.sp01.track_nstore
     dnb = sim.input.ndump
-    assert (dnp % res == 0) & (res % dnb == 0), "your resolution must be an integer multiple of track_nstore and ndump must be an integer multiple of res."
+    assert (dnp % res == 0) & (res % dnb == 0), """
+    your resolution must be an integer multiple of track_nstore and ndump must be an integer multiple of res.
+    """
     # find the file
     fn = sim.path+"/Output/Tracks/Sp01/track_Sp01.h5"
     with h5File(fn) as file:
         # extract particle tracks based on the particles argument
         tags = array(list(file.keys()))
         match particles:
-            case [str(x), ]: selected = particles 
+            case [str(x), ]: selected = particles
             case int(x): selected = choice(tags, size=x, replace=False)
-        sx, sy = array([file[t]['x1'] for t in selected]).T, array([file[t]['x2'] for t in selected]).T 
+        sx, sy = array(
+            [file[t]['x1'] for t in selected]).T, array([file[t]['x2'] for t in selected]
+        ).T
         # setup background
         if not background: background = sim.density
         # initialize plots
         fig,ax,img = show(
-            background[0], 
-            x=range(0, sim.input.boxsize[0], sim.dx), y=range(0, sim.input.boxsize[1], sim.dy), 
+            background[0],
+            x=range(0, sim.input.boxsize[0], sim.dx), y=range(0, sim.input.boxsize[1], sim.dy),
             zorder=1,
             **kwds
         )
         line, = ax.plot(
-            sx[0], sy[0], 
+            sx[0], sy[0],
             ls='None', color=color, marker=marker, ms=ms,
             zorder = 2
         )
@@ -112,9 +115,15 @@ def particle_video(
             pind = i * dnp
             line.set_data(sx[pind], sy[pind])
             if pind % dnb == 0:
-                bind = pind // dnb 
+                bind = pind // dnb
                 img.set_array(background[bind])
-        func_video(fname, fig, update, )
+        func_video(fname, fig, update, len(sx), dpi=dpi)
+
+# !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
+# >-|===|>                                    Errors                                      <|===|-<
+# !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
+class dHybridRInputError(Exception):
+    """something's wrong with a dHybridR input file"""
 
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
 # >-|===|>                                    Classes                                     <|===|-<
@@ -146,6 +155,8 @@ class dHybridRparticle(Particle):
             self.vz = self.p3
             self.position = Vector(self.x, self.y)
             self.velocity = Vector(self.p1, self.p2, self.p3)
+            self.B = Vector(self.B1, self.B2, self.B3)
+            self.E = Vector(self.E1, self.E2, self.E3)
             self.loaded: bool = True
 class dHybridRspecies(Species):
     def __init__(
@@ -160,14 +171,14 @@ class dHybridRspecies(Species):
         self.parent = parent
         self.input = getattr(parent.input, self.name)
         # particle indices per sim index
-        self.pipsi = parent.input.ndump / parent.input.sp01.track_nstore
+        self.pipsi = int(parent.input.ndump / parent.input.sp01.track_nstore)
         self.loaded = False
         if self.input.track_dump:
             self.path = parent.path+f"/Output/Tracks/Sp{self.nstr}/track_Sp{self.nstr}.h5"
             self.load()
     def __repr__(self) -> str: return self.name
     def __str__(self) -> str: return self.name
-    def __len__(self) -> int: 
+    def __len__(self) -> int:
         assert self.loaded, f"Tried to take the length of {self} without loading first"
         return len(self.tags)
     def __getitem__(self, key):
@@ -207,42 +218,47 @@ class dHybridR(GenericSimulation):
             path: str,
             caching: bool = False,
             verbose: bool = False,
+            debug: bool = False,
             template: Folder = dHybridRtemplate,
             compressed: bool = False,
-            timeinit: bool = False
         ) -> None:
-        self.runtimer = timeinit
-        if self.runtimer: self.start = time()
+        if debug: self.start = time()
         self.compressed = compressed
         #setup simulation
-        GenericSimulation.__init__(self, path, caching=caching, verbose=verbose, template=template)
-        if self.runtimer:
-            print(blue(f"init GenericSimulation: {time()-self.start}"))
+        GenericSimulation.__init__(
+            self, path,
+            caching=caching, verbose=verbose, template=template, debug=debug
+        )
+        if debug:
+            self.log.debug(f"Δt - init GenericSimulation: {time()-self.start:.1E} s")
             self.start = time()
         #setup input, output, and restart folders
         self.parse_input()
-        if self.runtimer:
-            print(blue(f"parse input: {time()-self.start}"))
+        if debug:
+            self.log.debug(f"Δt - parse input: {time()-self.start:.1E} s")
             self.start = time()
         self.output = Folder(self.path+"/Output")
         if not self.output.exists and verbose:
-            if yesno("There is no output, would you like to run this simulation?\n"): 
-                self.run()
-        elif self.output.exists:
+            raise FileNotFoundError("There is no output, please run this simulation.")
+        if self.output.exists:
             self.parse_output()
-            if self.runtimer:
-                print(blue(f"parse output: {time()-self.start}"))
+            if debug:
+                self.log.debug(f"Δt - parse output: {time()-self.start:.1E} s")
                 self.start = time()
             self.ncores: int = int(prod(self.input.node_number))
             self.ncores_charged: int = self.ncores + self.ncores % 128
         self.restartDir = Folder(self.path+"/Restart")
-    def __repr__(self) -> str: return self.name
+
+    def __repr__(self) -> str:
+        return self.name
+
     def __len__(self) -> int:
         if self.output.exists:
             return len(glob(self.output.path+"/Fields/Magnetic/Total/x/*.h5"))
         else: return 0
+
     def __getattr__(self, attr: str):
-        if hasattr(self, attr): return super().__getattr__(attr)
+        if attr in self.__dict__: return super().__getattr__(attr)
         if attr in ['energy_grid', 'energy_pdf', 'dlne']:
             [ # if we haven't pulled these extract them
                 self.energy_grid,
@@ -252,22 +268,37 @@ class dHybridR(GenericSimulation):
             self.energy_grid = vstack(self.energy_grid)
             self.energy_pdf = vstack(self.energy_pdf)
             self.dlne = vstack(self.dlne)
-        elif attr in ['runtime', 'corehours', 'corehours_charged']:
-            if self.out.exists:
-                self.runtime: float = self.out.runtime #run time as calculated from out file, in hours
-                self.corehours: float = self.runtime * prod(self.ncores)
-                self.corehours_charged: float = self.runtime * self.ncores_charged
-            if self.runtimer:
-                print(blue(f"calc corehours: {time()-self.start}"))
+            return getattr(self, attr)
+        elif attr in ['runtime', 'corehours', 'corehours_charged'] and self.out.exists:
+            #run time as calculated from out file, in hours
+            self.runtime: float = self.out.runtime
+            self.corehours: float = self.runtime * prod(self.ncores)
+            self.corehours_charged: float = self.runtime * self.ncores_charged
+            if self.debug:
+                self.log.debug(f"calc corehours: {time()-self.start}")
                 self.start = time()
+            return getattr(self, attr)
+        raise AttributeError(f"this simulation has no attribute '{attr}'")
+
     def create(self) -> None:
+        """docstring"""
         self.template.copy(self.path)
         system(f"chmod 755 {self.path}/dHybridR")
+
     def parse_input(self) -> None:
         """docstring"""
         self.input = dHybridRinput(self.path+"/input/input")
+        if not self.input.exists:
+            raise dHybridRInputError("")
         self.dt = self.input.dt
-        self.niter = self.input.niter
+        if hasattr(self.input, 'niter'):
+            self.niter: int = self.input.niter
+            self.tend: float = self.niter*self.dt
+        elif hasattr(self.input, 'tend'):
+            self.tend: float = self.input.tend
+            self.niter = int(self.tend // self.dt)
+        else:
+            raise AttributeError("input file has neither niter nor tend")
         self.size = self.input.boxsize
         self.dx: float = self.input.boxsize[0]/self.input.ncells[0]
         self.dy: float = self.input.boxsize[1]/self.input.ncells[1]
@@ -281,8 +312,8 @@ class dHybridR(GenericSimulation):
     def parse_output(self) -> None:
         """docstring"""
         self.out = dHybridRout(self.path+"/out")
-        if self.runtimer:
-            print(blue(f"read outfile: {time()-self.start}"))
+        if self.debug:
+            self.log.debug(f"read outfile: {time()-self.start:.1E} s")
             self.start = time()
         kwargs = {
             'caching':self.caching, 
@@ -290,90 +321,107 @@ class dHybridR(GenericSimulation):
             'parent':self, 
             'stats':Folder(f"{self.path}/stats")
         }
-        self.B = VectorField(
-            self.path + "/Output/Fields/Magnetic/Total/", name="magnetic", latex="B", **kwargs
-        )
-        if self.runtimer:
-            print(blue(f"read B: {time()-self.start}"))
-            self.start = time()
-        self.E = VectorField(
-            self.path + "/Output/Fields/Electric/Total/", name="electric", latex="E", **kwargs
-        )
-        if self.runtimer:
-            print(blue(f"read E: {time()-self.start}"))
-            self.start = time()
-        self.etx1 = ScalarField(
-            self.path + "/Output/Phase/etx1/Sp01/", name='etx1', **kwargs
-        )
-        if self.runtimer:
-            print(blue(f"read etx1: {time()-self.start}"))
-            self.start = time()
-        self.pxx1 = ScalarField(
-            self.path + "/Output/Phase/p1x1/Sp01/", name='pxx1', **kwargs
-        )
-        if self.runtimer:
-            print(blue(f"read pxx1: {time()-self.start}"))
-            self.start = time()
-        self.pyx1 = ScalarField(
-            self.path + "/Output/Phase/p2x1/Sp01/", name='pyx1', **kwargs
-        )
-        if self.runtimer:
-            print(blue(f"read pyx1: {time()-self.start}"))
-            self.start = time()
-        self.pzx1 = ScalarField(
-            self.path + "/Output/Phase/p3x1/Sp01/", name='pzx1', **kwargs
-        )
-        if self.runtimer:
-            print(blue(f"read pzx1: {time()-self.start}"))
-            self.start = time()
-        self.density = ScalarField(
-            self.path + "/Output/Phase/x3x2x1/Sp01/", name="density", latex=r"$\rho$", **kwargs
-        )
-        if self.runtimer: 
-            print(blue(f"read density: {time()-self.start}"))
-            self.start = time()
-        self.Pxx = ScalarField(
-            self.path + "/Output/Phase/PressureTen/Sp01/xx/", name='Pxx', **kwargs
+
+        if exists(p:=self.path + "/Output/Fields/Magnetic/Total/"):
+            self.B = VectorField(
+                p, name="magnetic", latex="B", **kwargs
             )
-        if self.runtimer:
-            print(blue(f"read Pxx: {time()-self.start}"))
-            self.start = time()
-        self.Pyy = ScalarField(
-            self.path + "/Output/Phase/PressureTen/Sp01/yy/", name='Pyy', **kwargs
-        )
-        if self.runtimer:
-            print(blue(f"read Pyy: {time()-self.start}"))
-            self.start = time()
-        self.Pzz = ScalarField(
-            self.path + "/Output/Phase/PressureTen/Sp01/zz/", name='Pzz', **kwargs
-        )
-        if self.runtimer:
-            print(blue(f"read Pzz: {time()-self.start}"))
-            self.start = time()
-        self.u = VectorField(
-            self.path + "/Output/Phase/FluidVel/Sp01/", name="bulkflow", latex="u", **kwargs
-        )
-        if self.runtimer:
-            print(blue(f"read u: {time()-self.start}"))
-            self.start = time()
-        if self.runtimer:
-            print(blue(f"extract energy: {time()-self.start}"))
-            self.start = time()
+            if self.debug:
+                self.log.debug(f"Δt - read B: {time()-self.start:.1E} s")
+                self.start = time()
+        if exists(p:=self.path + "/Output/Fields/Electric/Total/"):
+            self.E = VectorField(
+                p, name="electric", latex="E", **kwargs
+            )
+            if self.debug:
+                self.log.debug(f"Δt - read E: {time()-self.start:.1E} s")
+                self.start = time()
+        if exists(p:=self.path + "/Output/Fields/CurrentDens/"):
+            self.J = VectorField(
+                p, name="electric", latex="E", **kwargs
+            )
+            if self.debug:
+                self.log.debug(f"Δt - read E: {time()-self.start:.1E} s")
+                self.start = time()
+        if exists(p:=self.path + "/Output/Phase/etx1/Sp01/"):
+            self.etx1 = ScalarField(
+                p, name='etx1', **kwargs
+            )
+            if self.debug:
+                self.log.debug(f"Δt - read etx1: {time()-self.start:.1E} s")
+                self.start = time()
+        if exists(p:=self.path + "/Output/Phase/p1x1/Sp01/"):
+            self.pxx1 = ScalarField(
+                p, name='pxx1', **kwargs
+            )
+            if self.debug:
+                self.log.debug(f"Δt - read pxx1: {time()-self.start:.1E} s")
+                self.start = time()
+        if exists(p:=self.path + "/Output/Phase/p2x1/Sp01/"):
+            self.pyx1 = ScalarField(
+                p, name='pyx1', **kwargs
+            )
+            if self.debug:
+                self.log.debug(f"Δt - read pyx1: {time()-self.start:.1E} s")
+                self.start = time()
+        if exists(p:=self.path + "/Output/Phase/p3x1/Sp01/"):
+            self.pzx1 = ScalarField(
+                p, name='pzx1', **kwargs
+            )
+            if self.debug:
+                self.log.debug(f"Δt - read pzx1: {time()-self.start:.1E} s")
+                self.start = time()
+        if exists(p:=self.path + "/Output/Phase/x3x2x1/Sp01/"):
+            self.density = ScalarField(
+                p, name="density", latex=r"$\rho$", **kwargs
+            )
+            if self.debug:
+                self.log.debug(f"Δt - read density: {time()-self.start:.1E} s")
+                self.start = time()
+        if exists(p:=self.path + "/Output/Phase/PressureTen/Sp01/xx/"):
+            self.Pxx = ScalarField(
+                p, name='Pxx', **kwargs
+                )
+            if self.debug:
+                self.log.debug(f"Δt - read Pxx: {time()-self.start:.1E} s")
+                self.start = time()
+        if exists(p:=self.path + "/Output/Phase/PressureTen/Sp01/yy/"):
+            self.Pyy = ScalarField(
+                p, name='Pyy', **kwargs
+            )
+            if self.debug:
+                self.log.debug(f"Δt - read Pyy: {time()-self.start:.1E} s")
+                self.start = time()
+        if exists(p:=self.path + "/Output/Phase/PressureTen/Sp01/zz/"):
+            self.Pzz = ScalarField(
+                p, name='Pzz', **kwargs
+            )
+            if self.debug:
+                self.log.debug(f"Δt - read Pzz: {time()-self.start:.1E} s")
+                self.start = time()
+        if exists(p:=self.path + "/Output/Phase/FluidVel/Sp01/"):
+            self.u = VectorField(
+                p, name="bulkflow", latex="u", **kwargs
+            )
+            if self.debug:
+                self.log.debug(f"Δt - read u: {time()-self.start:.1E} s")
+                self.start = time()
         if self.input.sp01.track_dump:
             self.sp01 = dHybridRspecies(self, 1)
-        if self.runtimer:
-            print(blue(f"set species: {time()-self.start}"))
+        if self.debug:
+            self.log.debug(f"Δt - set species: {time()-self.start:.1E} s")
             self.start = time()
         self.iter = array(iters(self))
         self.time = array(times(self))
     def magnetic_potential_extrema(self):
+        """docstring"""
         n, x = inf, -inf
         for i in verbose_bar(range(len(self)), self.verbose, total=len(self)):
-            const = 0 if i==0 else -self.E.z[i-1][0,0]*self.dt
+            # const = 0 if i==0 else -self.E.z[i-1][0,0]*self.dt
             potential = Az(self.B.x[i], self.B.y[i], dx=self.dx, dy=self.dy)
             yn = append(n, potential)
             n = nanmin(yn)
-            yx = append(x, potential)
+            # yx = append(x, potential)
             x = nanmax(yn)
         return n, x
 

@@ -1,76 +1,86 @@
-# !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
-# >-|===|>                             Imports                             <|===|-<
-# !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
-from kgsim.fields.scalar import ScalarField
-from kbasic.parsing import Folder
-from kbasic.typing import ArrayLike
-from kbasic.bar import verbose_bar
-from kplot import default_cmap, show_video
+"""Vector Fields"""
+# !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
+# >-|===|>                                    Imports                                     <|===|-<
+# !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
 from functools import cached_property
 from typing import Optional, Self
+from os.path import isdir
+
+from kgsim.fields.scalar import ScalarField
+
+from kbasic import Folder, verbose_bar
+from kplot import default_cmap, show_video
+
 from numpy.typing import NDArray
-from numpy import array, sqrt, zeros, nanstd, arange, cumsum, hypot
-from matplotlib.pyplot import gca 
+from numpy import ndarray, array, sqrt, zeros, arange, cumsum, hypot
+
+from matplotlib.pyplot import gca
 from matplotlib.axes import Axes
 
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
 # >-|===|>                            Functions                            <|===|-<
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
 def Az(Bx, By, dx=1, dy=1):
+    """docstring"""
     Az = zeros(Bx.shape)
     Az[1:] = cumsum(Bx[1:]*dy, axis=0)
     Az[:,1:] = (Az[:,0]-cumsum(By[:,1:]*dx, axis=1).T).T
     return Az
+
+def _vector_mag(V):
+    """docstring"""
+    homo = all([len(V.x[i])==len(V.x[0]) for i in range(len(V))])
+    return array([
+        sqrt(sum([
+            c[i]**2 for c in V.components
+        ])) for i in verbose_bar(range(len(V)), V.verbose, desc="taking magnitude...")
+    ], dtype=float if homo else object)
 
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
 # >-|===|>                             Classes                             <|===|-<
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
 class VectorField:
     def __init__(
-            self, 
-            *components, 
-            stats: Optional[Folder|str] = None,
-            caching: bool = False, 
-            verbose: bool = False,
-            name: Optional[str] = None, 
+            self,
+            *components,
+            name: Optional[str] = None,
             latex: Optional[str] = None,
+            stats: Optional[Folder|str] = None,
+            caching: bool = False,
+            verbose: bool = False,
+            debug: bool = False,
             parent = None,
             parallel: Optional[str] = 'z'
         ) -> None:
         latex = "".join([c for c in latex if c not in r"$\{}"])
         self.stats = Folder(stats)
         self.name = name
-        self.latex = latex 
+        self.latex = latex
         self.parent = parent
-        if parent: 
+        if parent:
             self.dx, self.dy = parent.dx, parent.dy
-        self.verbose = verbose 
+        self.debug = debug
+        self.verbose = verbose
         self.caching = caching
-        child_kwargs = {'parent':parent, 'verbose':verbose, 'caching':caching, 'stats': stats}
-        if len(components)==1 and type(path:=components[0])==str:
-            components = (
-                ScalarField(path+"/x", name=name+"_x_component", latex=f"${latex}_x$", **child_kwargs), 
-                ScalarField(path+"/y", name=name+"_y_component", latex=f"${latex}_y$", **child_kwargs), 
-                ScalarField(path+"/z", name=name+"_z_component", latex=f"${latex}_z$", **child_kwargs)
+        # set self.components, self.ndims, self.size
+        self._parse_components(components)
+    def __len__(self) -> int: return min([len(c) for c in self.components])
+    def __abs__(self) -> NDArray | ScalarField:
+        if hasattr(self, 'magnitude'):
+            return self.magnitude
+        if (p:=self.dir / "Intensity").exists:
+            self.magnitude = ScalarField(
+                p, 
+                name=self.name+'_magnitude',
+                latex=f"$|{self.latex}|$",
+                parent=self.parent,
+                caching=self.caching,
+                verbose=self.verbose,
+                debug=self.debug
             )
-        self.ndims = len(components)
-        assert 1<self.ndims<4, f"Only 2-3 components are supported. {len(components)} were given"
-        component_names = "xyz"
-        self.components = []
-        for name,val in zip(component_names, components): 
-            comp = ScalarField(val, caching=self.caching) if type(val)==str else val
-            self.components.append(comp)
-            setattr(self, name, comp)
-        self.size = sum([c.size for c in self.components])
-        self.set_parallel(parallel)
-    def __len__(self) -> int: return min([len(self.x), len(self.y), len(self.z)])
-    def __abs__(self) -> NDArray:
-        homo = all([len(self.x[i])==len(self.x[0]) for i in range(len(self))])
-        return array([
-            sqrt(sum([
-                c[i]**2 for c in self.components
-            ])) for i in verbose_bar(range(len(self)), self.verbose, desc="taking magnitude...")
-        ], dtype=float if homo else object)
+            return self.magnitude
+
+        return _vector_mag(self)
     def __getitem__(self, item: int|slice) -> NDArray:
         match type(item):
             case int(): return array([c[item] for c in self.components])
@@ -87,6 +97,42 @@ class VectorField:
                         c[i] for c in self.components
                     ] for i in item_iters
                 ])
+    def _parse_components(self, source: tuple) -> None:
+        """
+        Parse user input components into class attributes
+        
+        source must be either a directory with sub-directories x, y, z, or a series of
+        pre-initialized numpy arrays or ScalarFields.
+        """
+        match source:
+            # init from folder
+            case (str(path),) | (Folder(path),) if isdir(path):
+                child_kwargs = {
+                    'parent':self.parent, 'verbose':self.verbose, 
+                    'caching':self.caching, 'stats':self.stats, 
+                    'debug':self.debug
+                    }
+                self.path = Folder(path)
+                self.components = tuple(
+                    ScalarField(
+                        c.path,
+                        name=self.name+f"_{c.name}", latex=f"${self.latex}_{c.name}$",
+                        **child_kwargs
+                    ) for c in self.path.children if c.name in 'xyz'
+                )
+                for c in self.components:
+                    setattr(self, c.name[-1], c)
+            # init from numpy arrays or pre-initialized ScalarFields, assume xyz order
+            case (ndarray(), *_) | (ScalarField(), *_):
+                assert len(source)<=3
+                assert all(isinstance(c, ndarray) for c in source)
+                self.components = source
+                for c,cn in zip(source, 'xyz'):
+                    setattr(self, cn, c)
+            case _: raise TypeError(f"need a path or array-like object, but given {source}")
+        self.ndims = len(self.components)
+        self.size = sum(c.size for c in self.components)
+
     def dot(self, other: Self) -> NDArray: 
         if isinstance(other, VectorField):
             assert self.ndims==3, "only 3D vector fields can be dotted at this time"
@@ -142,24 +188,30 @@ class VectorField:
     def set_parallel(self, component:str) -> None:
         match component.lower():
             case 'x':
-                self.parallel = self.x 
-                self.perpendicular = self.y, self.z 
+                self.parallel = self.x
+                self.perpendicular = self.y, self.z
             case 'y':
-                self.parallel = self.y 
-                self.perpendicular = self.x, self.z 
+                self.parallel = self.y
+                self.perpendicular = self.x, self.z
             case 'z':
                 self.parallel = None if not hasattr(self, 'z') else self.z
-                self.perpendicular = self.x, self.y 
+                self.perpendicular = self.x, self.y
     def movie(self, mode='mag', norm='none', cmap=default_cmap, **kwrg) -> None:
         match mode.lower():
             case 'mag'|'magnitude'|'abs':
-                @show_video(name=self.name+"_magnitude", latex=fr"$|{self.name}|$", norm=norm, cmap=cmap)
+                @show_video(
+                    name=self.name+"_magnitude", latex=fr"$|{self.name}|$", norm=norm, cmap=cmap
+                )
                 def reveal_thyself(s, **kwargs): return abs(self)
             case 'perp'|'perpendicular':
-                @show_video(name=self.name+"_perp", latex=fr"${self.name}_\perp$", norm=norm, cmap=cmap)
+                @show_video(
+                    name=self.name+"_perp", latex=fr"${self.name}_\perp$", norm=norm, cmap=cmap
+                )
                 def reveal_thyself(s, **kwargs): return self.perp                
             case 'par'|'parallel':
-                @show_video(name=self.name+"_par", latex=fr"${self.name}_\parallel$", norm=norm, cmap=cmap)
+                @show_video(
+                    name=self.name+"_par", latex=fr"${self.name}_\parallel$", norm=norm, cmap=cmap
+                )
                 def reveal_thyself(s, **kwargs): return array([self.parallel[i] for i in range(len(self))])
         reveal_thyself(self if self.parent is None else self.parent, **kwrg)
     def quiver(

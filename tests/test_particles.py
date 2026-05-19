@@ -20,7 +20,7 @@ def test_main():
         color=energy, norm='log', 
         save='./tests/output/periodic.png'
     )
-
+    print(p.interpolate_onto())
     assert False
 
 def test_particles():
