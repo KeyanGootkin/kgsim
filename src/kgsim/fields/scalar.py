@@ -63,7 +63,7 @@ class ScalarField:
         caching: bool = False,
         verbose: bool = False,
         debug: bool = False,
-    ) -> None:
+        ) -> None:
         self.name: str = name
         self.latex: str = latex
         self.parent = parent
@@ -212,7 +212,7 @@ class ScalarField:
         if hasattr(self.parent, 'dx'):
             x_ticks = arange(0, self.parent.input.boxsize[0], self.parent.dx)
             y_ticks = arange(0, self.parent.input.boxsize[1], self.parent.dy)
-            show(self[item], x=x_ticks, y=y_ticks, **kwargs)
+            return show(self[item], x=x_ticks, y=y_ticks, **kwargs)
         assert False
     def movie(self, file_name=None, norm='none', cmap=default_cmap, func=None,**kwds) -> None:
         """docstring"""

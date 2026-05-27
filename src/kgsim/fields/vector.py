@@ -64,13 +64,15 @@ class VectorField:
         self.caching = caching
         # set self.components, self.ndims, self.size
         self._parse_components(components)
+
     def __len__(self) -> int: return min([len(c) for c in self.components])
+
     def __abs__(self) -> NDArray | ScalarField:
         if hasattr(self, 'magnitude'):
-            return self.magnitude
-        if (p:=self.dir / "Intensity").exists:
+            return getattr(self, 'magnitude')
+        if type(p:=self.path / "Intensity")==Folder:
             self.magnitude = ScalarField(
-                p, 
+                p,
                 name=self.name+'_magnitude',
                 latex=f"$|{self.latex}|$",
                 parent=self.parent,
@@ -79,8 +81,9 @@ class VectorField:
                 debug=self.debug
             )
             return self.magnitude
+        self.magnitude = _vector_mag(self)
+        return self.magnitude
 
-        return _vector_mag(self)
     def __getitem__(self, item: int|slice) -> NDArray:
         match type(item):
             case int(): return array([c[item] for c in self.components])
@@ -97,6 +100,7 @@ class VectorField:
                         c[i] for c in self.components
                     ] for i in item_iters
                 ])
+
     def _parse_components(self, source: tuple) -> None:
         """
         Parse user input components into class attributes
@@ -153,6 +157,7 @@ class VectorField:
                 for j in range(other.shape[1])] 
             for k in verbose_bar(range(len(other)), self.verbose, desc="constructing B...")])
             return sum(A * B, axis=2)
+
     def cross(self, other: Self, k:int) -> NDArray:
         if type(other)==VectorField: 
             assert self.ndims==3, "only 3D vector fields can be crossed at this time"
@@ -162,11 +167,13 @@ class VectorField:
                 self.z[k]*other.x[k] - self.x[k]*other.z[k],
                 self.x[k]*other.y[k] - self.y[k]*other.x[k]
             ])
+
     @cached_property
     def potential(self) -> NDArray:
         match len(self.x.shape):
             case 2: 
                 return array([Az(self.x[i], self.y[i], dx=self.dx, dy=self.dy) for i in range(len(self))])
+
     def calc_perp(self, item=None) -> NDArray: 
         if not item:
             self.perp = array([
@@ -185,6 +192,7 @@ class VectorField:
             ]
             self.perp = array([hypot(self.perpendicular[0][j], self.perpendicular[1][j]) for j in item_iters])
         else: raise TypeError(f"calc_perp only takes ints, slices, or None for item, not {type(item)}-type objects")
+
     def set_parallel(self, component:str) -> None:
         match component.lower():
             case 'x':
@@ -196,6 +204,7 @@ class VectorField:
             case 'z':
                 self.parallel = None if not hasattr(self, 'z') else self.z
                 self.perpendicular = self.x, self.y
+
     def movie(self, mode='mag', norm='none', cmap=default_cmap, **kwrg) -> None:
         match mode.lower():
             case 'mag'|'magnitude'|'abs':
@@ -214,6 +223,7 @@ class VectorField:
                 )
                 def reveal_thyself(s, **kwargs): return array([self.parallel[i] for i in range(len(self))])
         reveal_thyself(self if self.parent is None else self.parent, **kwrg)
+
     def quiver(
         self,
         ind: int,
@@ -225,7 +235,7 @@ class VectorField:
         transpose: bool = False,
         #everything else goes into matplotlib command
         **kwargs
-    ) -> None:
+        ) -> None:
         if not ax: ax = gca()
         match x, y:
             case None, None:

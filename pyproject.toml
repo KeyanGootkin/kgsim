@@ -1,6 +1,6 @@
 [project]
 name = "kgsim"
-version = "0.2.98"
+version = "0.3.3"
 description = "A library to interact with simulations with."
 authors = [
   { name="Keyan Gootkin", email="keyangootkin@gmail.com" },

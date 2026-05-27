@@ -7,11 +7,11 @@ from glob import glob
 from os import system
 from os.path import exists
 from h5py import File as h5File
-from numpy import mean, linspace, diff, exp, array, prod, inf, vstack, nanmin, \
-                  nanmax, append
+from numpy import mean, linspace, diff, exp, array, prod, inf, vstack, nanmin, nanmax, append, \
+    ndarray
 from numpy.random import choice
 
-from kgsim.fields import ScalarField, VectorField, Az
+from kgsim.fields import ScalarField, VectorField, Az, single_point_single_lag_structure_function
 from kgsim.simulation import GenericSimulation, SimulationGroup
 from kgsim.particles import Species, Particle
 from kgsim.dhybridr.io import dHybridRinput, dHybridRout
@@ -22,7 +22,7 @@ from kgsim.templates import dHybridRtemplate
 from kplot import show, func_video
 from kbasic.bar import verbose_bar
 from kbasic.strings import purple
-from kbasic.parsing import Folder
+from kbasic.parsing import Folder, Path
 from kbasic.vectors import Vector
 
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
@@ -35,6 +35,12 @@ track_keys = [
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
 # >-|===|>                                   Functions                                    <|===|-<
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
+def create_dhybridr_data_file(data: ndarray, path: Path) -> h5File:
+    """docstring"""
+    with h5File(path, 'a') as file:
+        file['DATA'] = data
+    return file
+
 # simulation parsing
 def extract_energy(file_name: str) -> tuple:
     """docstring"""
@@ -45,9 +51,13 @@ def extract_energy(file_name: str) -> tuple:
         dlne = diff(lne)[0]
         E = exp(lne)
         return E, fE, dlne
+
+
 def iters(simulation) -> list[int]:
     """Grab the iterations of each snapshot for a simulation"""
     return [int(fn[-11:-3]) for fn in simulation.density.file_names]
+
+
 def times(simulation: GenericSimulation, ndigits: int = 7) -> list[float]:
     """return the time (in simulation units) of each measurement
 
@@ -61,6 +71,8 @@ def times(simulation: GenericSimulation, ndigits: int = 7) -> list[float]:
     """
     x = list(array(iters(simulation)).astype(float) * simulation.dt)
     return [round(xi, ndigits) for xi in x]
+
+
 def particle_video(
     sim,
     particles: list[str] | int,
@@ -139,9 +151,11 @@ class dHybridRparticle(Particle):
         Particle.__init__(self, species=species, tag=tag)
         self.loaded: bool = False
         if load: self.load()
+
     def __len__(self) -> int:
         assert self.loaded, f"Tried to take the length of {self} without loading first"
         return len(self.x)
+
     def load(self):
         """docstring"""
         with h5File(self.species.path) as file:
@@ -158,6 +172,20 @@ class dHybridRparticle(Particle):
             self.B = Vector(self.B1, self.B2, self.B3)
             self.E = Vector(self.E1, self.E2, self.E3)
             self.loaded: bool = True
+
+    def structure_function(self, l):
+        """docstring"""
+        u = abs(self.parent.u)
+        xcells = (self.x // self.parent.dx).astype(int)
+        ycells = (self.y // self.parent.dy).astype(int)
+        bis = [i for _ in range(self.species.pipsi) for i in range(len(self.parent))]
+        return array([
+            single_point_single_lag_structure_function(
+                xcells[i], ycells[i], 1, u[bi], l
+                ) for i,bi in verbose_bar(zip(range(len(self.parent)), bis), self.parent.verbose)
+            ])
+
+
 class dHybridRspecies(Species):
     def __init__(
         self,
@@ -176,11 +204,15 @@ class dHybridRspecies(Species):
         if self.input.track_dump:
             self.path = parent.path+f"/Output/Tracks/Sp{self.nstr}/track_Sp{self.nstr}.h5"
             self.load()
+
     def __repr__(self) -> str: return self.name
+
     def __str__(self) -> str: return self.name
+
     def __len__(self) -> int:
         assert self.loaded, f"Tried to take the length of {self} without loading first"
         return len(self.tags)
+
     def __getitem__(self, key):
         match key:
             case str(tag): return dHybridRparticle(self, tag)
@@ -193,6 +225,7 @@ class dHybridRspecies(Species):
                         1 if di is None else di
                         )
                     ]
+
     def load(self):
         """docstring"""
         with h5File(self.path) as file:
@@ -209,6 +242,8 @@ class dHybridRspecies(Species):
         ])
         if len(particle_list)==1: return particle_list[0]
         else: return particle_list
+
+
 class dHybridR(GenericSimulation):
     """
     A simulation class to interact with dHybridR simulations in python
@@ -304,11 +339,13 @@ class dHybridR(GenericSimulation):
         self.dy: float = self.input.boxsize[1]/self.input.ncells[1]
         self.dz: float = self.input.boxsize[2]/self.input.ncells[2] \
                          if len(self.input.boxsize)==3 else inf
+
     def run(self, initializer: dHybridRinitializer, submit_script: AnvilSubmitScript) -> None:
         """docstring"""
         initializer.prepare_simulation()
         submit_script.write()
         system(f"sh {submit_script.path}")
+
     def parse_output(self) -> None:
         """docstring"""
         self.out = dHybridRout(self.path+"/out")
@@ -413,6 +450,7 @@ class dHybridR(GenericSimulation):
             self.start = time()
         self.iter = array(iters(self))
         self.time = array(times(self))
+
     def magnetic_potential_extrema(self):
         """docstring"""
         n, x = inf, -inf
