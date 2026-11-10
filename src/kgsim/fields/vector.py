@@ -4,7 +4,8 @@
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
 from functools import cached_property
 from typing import Optional, Self
-from os.path import isdir
+from os import system
+from os.path import isdir, exists
 
 from kgsim.fields.scalar import ScalarField
 
@@ -52,7 +53,7 @@ class VectorField:
             parent = None,
             parallel: Optional[str] = 'z'
         ) -> None:
-        latex = "".join([c for c in latex if c not in r"$\{}"])
+        latex = "".join([c for c in latex if c not in r"$\{}"]) if not latex is None else ''
         self.stats = Folder(stats)
         self.name = name
         self.latex = latex
@@ -70,7 +71,7 @@ class VectorField:
     def __abs__(self) -> NDArray | ScalarField:
         if hasattr(self, 'magnitude'):
             return getattr(self, 'magnitude')
-        if type(p:=self.path / "Intensity")==Folder:
+        if exists(p:=self.path / "Intensity"):
             self.magnitude = ScalarField(
                 p,
                 name=self.name+'_magnitude',
@@ -81,7 +82,18 @@ class VectorField:
                 debug=self.debug
             )
             return self.magnitude
-        self.magnitude = _vector_mag(self)
+        self.magnitude = ScalarField(
+            _vector_mag(self),
+            name=self.name+'_magnitude',
+            latex=f"$|{self.latex}|$",
+            parent=self.parent,
+            caching=self.caching,
+            verbose=self.verbose,
+            debug=self.debug
+        )
+        if hasattr(self, 'writer'):
+            system(f'mkdir -p {p}')
+            self.writer(self.magnitude, p)
         return self.magnitude
 
     def __getitem__(self, item: int|slice) -> NDArray:

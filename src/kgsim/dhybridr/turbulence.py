@@ -45,28 +45,28 @@ def non_thermal_slope(E, f, mach):
     [slope, b], _ = curve_fit(line, log10(E), log10(f/E))
     return slope, b
 
-def S(p: int, u: ndarray, l: int):
-    """
-    Compute structure function of power p, of field u, at lag l
-    S_p(u, l) = <(u(x) - u(x + l))^p>
-    p: int - order of structure function
-    u: Array - field to take structure function of
-    l: int - lag, i.e. how many pixels away should the function look
-    """
-    (Nx, Ny) = u.shape
-    assert l < min(u.shape), f"l ({l}) is larger than smallest dimension ({min(u.shape)})"
-    grid = mgrid[-Nx//2:Nx//2, -Ny//2:Ny//2]
-    grid = hypot(grid[0], grid[1])
-    grid = where(grid//1 == l, True, False)
-    in_annulus = lambda i, j: roll(grid, (i - Nx//2, j - Ny//2), axis=(0,1))
-    # for some reason this needs to be transposed
-    return array([
-        [
-            mean(
-                (u[i, j] - u[in_annulus(i, j)]) ** p
-            ) for i in arange(Nx)
-        ] for j in progress_bar(arange(Ny))
-    ]).T
+# def S(p: int, u: ndarray, l: int):
+#     """
+#     Compute structure function of power p, of field u, at lag l
+#     S_p(u, l) = <(u(x) - u(x + l))^p>
+#     p: int - order of structure function
+#     u: Array - field to take structure function of
+#     l: int - lag, i.e. how many pixels away should the function look
+#     """
+#     (Nx, Ny) = u.shape
+#     assert l < min(u.shape), f"l ({l}) is larger than smallest dimension ({min(u.shape)})"
+#     grid = mgrid[-Nx//2:Nx//2, -Ny//2:Ny//2]
+#     grid = hypot(grid[0], grid[1])
+#     grid = where(grid//1 == l, True, False)
+#     in_annulus = lambda i, j: roll(grid, (i - Nx//2, j - Ny//2), axis=(0,1))
+#     # for some reason this needs to be transposed
+#     return array([
+#         [
+#             mean(
+#                 (u[i, j] - u[in_annulus(i, j)]) ** p
+#             ) for i in arange(Nx)
+#         ] for j in progress_bar(arange(Ny))
+#     ]).T
 
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
 # >-|===|>                                    Classes                                     <|===|-<
@@ -126,7 +126,7 @@ class TurbInit(dHybridRinitializer):
                     self.simulation.tau = self.simulation.time * max(
                         self.mach if isinstance(self.mach, Iterable) else [self.mach]
                         ) / (
-                            max(self.input.boxsize)
+                            max(self.input.boxsize) / 2 # /2 assumes k_inj=Lbox/2 !!!!!
                             )
                 elif self.simulation.compressed:
                     self.simulation.tau = self.simulation.time * max(

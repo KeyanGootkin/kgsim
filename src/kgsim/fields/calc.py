@@ -52,14 +52,15 @@ class NablaOperator:
                 dFzdz = ddz(other.z[:], dz) if other.ndims==3 else 0
                 return dFxdx + dFydy + dFzdz
     def x(
-            self, 
+            self,
             other: VectorField | NDArray
             ) -> VectorField | NDArray: # curl
+        """docstring"""
         match other:
-            case VectorField(): 
+            case VectorField():
                 d = self.parse_grid_di(other.x)
                 dz,dy,dx = d if len(d)==3 else tuple([inf, *d])
-                dt = 1 if not other.parent else other.parent.dt
+                # dt = 1 if not other.parent else other.parent.dt
                 dFzdy = ddy(other.z[:], dy)
                 dFydz = ddz(other.y[:], dz) if other.ndims==3 else 0
                 dFxdz = ddz(other.x[:], dz) if other.ndims==3 else 0

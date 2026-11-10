@@ -26,20 +26,22 @@ from matplotlib.axes import Axes
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
 def particle_interp(x: float, y: float, dx, dy, field):
     """blame colby if this fucks up >:)"""
-    # position in cells
-    xc, yc = x*dx, y*dy
     # grid points
-    i = int(xc//1)
-    j = int(yc//1)
+    i = int(x//dx)
+    j = int(y//dy)
     # weight factors
-    wx = xc-i
-    wy = yc-j
+    wx = (x/dx)-i
+    wy = (y/dy)-j
     # weighted terms
-    fbl = field[i, j] * (1-wx) * (1-wy)
-    ftl = field[i, j+1] * (1-wx) * wy
-    ftr = field[i+1, j+1] * wx * wy
-    fbr = field[i+1, j] * wx * (1-wy)
+    l, r = i, i+1 if i+1<field.shape[0] else 0
+    b, t = j, j+1 if j+1<field.shape[1] else 0
+    fbl = field[b, l] * wx * wy
+    ftl = field[t, l] * (1-wy) * wx
+    ftr = field[t, r] * (1-wx) * (1-wy)
+    fbr = field[b, r] * wy * (1-wx)
     return fbl+ftl+ftr+fbr
+
+
 def lorentz_boost(u, v, c=100):
     """
     to confirm im not dumb http://hyperphysics.phy-astr.gsu.edu/hbase/Relativ/veltran.html
@@ -48,6 +50,8 @@ def lorentz_boost(u, v, c=100):
     this works for kbasic.Vector's as well as scalars as well as arrays of vectors
     """
     return (u - v) / (1-abs(u)*abs(v)*c**-2)
+
+
 def ExB_boost(u, E, B, c=100):
     """lorentz boost in the ExB drift frame"""
     v = E.cross(B) / abs(B)**2
@@ -72,7 +76,9 @@ class Species:
         self.q = q
         self.mtq = m/q # mass to charge ratio
         self.qtm = q/m # charge to mass ratio
+
     def __repr__(self) -> str: return self.name
+
 class Particle:
     def __init__(
             self,
@@ -113,27 +119,31 @@ class Particle:
                 raise ValueError("the sizes of x, y, z must be the same")
         self.velocity = Vector(self.vx, self.vy, self.vz)
         self.v = self.velocity
+
     def __len__(self) -> int: return len(self.position)
+
     def __repr__(self) -> str: return f"{self.species.name}: {self.tag}"
+
     def trail_segments(self, i: int, n_trail: int = 100, alpha='fade') -> tuple[list]:
         """docstring"""
         assert self.parent
         if i==0: return [], []
         n_trail = min(n_trail, i)
         i_start = i - n_trail
-        trail = self.position[i_start: i]
+        trail = (self.x[i_start: i], self.y[i_start:i])
         domain = ((0, self.parent.size[0]), (0, self.parent.size[1]))
         match alpha:
             case 'fade': a = linspace(0, 1, n_trail)
             case float(x): a = zeros(n_trail)+x
             case _: raise TypeError(f"alpha is {alpha} but must be float or 'fade'")
         xs, ys, alphas = periodic_lines(
-            trail.x, trail.y, domain,
+            *trail, domain,
             alpha=a
         )
         segments = [s for x, y in zip(xs, ys) for s in line2segments(x, y)]
         segment_alphas = [ai for a in alphas for ai in a]
         return segments, segment_alphas
+
     def plot_trail(
         self,
         start: int = 0,
@@ -166,31 +176,32 @@ class Particle:
             fname = save if isinstance(save, str) else 'default'
             fig.savefig(fname)
         return fig, ax, lc
+
     def distance_from(self, target_coords: tuple | Vector):
         """docstring"""
         tc = Vector(target_coords)
         assert tc.ndims==self.position.ndims
         return abs(tc - self.position)
+
     def interpolate_onto(self, field) -> Array:
         """docstring"""
         dx = self.parent.dx
         dy = self.parent.dy
+        p = self.species.pipsi
         match field:
             case ScalarField():
-                field = [fi for i in range(self.species.pipsi) for fi in field]
                 return array([
-                    particle_interp(xi, yi, dx, dy, fi) for xi, yi, fi in zip(self.x, self.y, field)
+                    particle_interp(xi, yi, dx, dy, fi) for xi, yi, fi in zip(self.x[::p], self.y[::p], field)
                 ])
             case VectorField():
                 comps = []
-                for fieldi in field.components:
-                    comp_i = [fi for i in range(self.species.pipsi) for fi in fieldi]
+                ordered_fields = [field.y,field.x,] if len(field.components)==2 else [field.x, field.y, field.z]
+                for fieldi in ordered_fields:
                     ci = array([
                         particle_interp(xi, yi, dx, dy, fi)\
-                        for xi, yi, fi in zip(self.x, self.y, comp_i)
+                        for xi, yi, fi in zip(self.x[::p], self.y[::p], fieldi)
                     ])
                     comps.append(ci)
-                print(comps)
                 return Vector(*comps)
         raise TypeError("giveme a better field pls")
 
@@ -198,11 +209,13 @@ class Population:
     def __init__(self, particles) -> None:
         self.particles = particles
         self.tags = [p.tag for p in self.particles]
+
     def __new__(cls, particles):
         match particles:
             case Population(): return particles
             case _:
                 return super().__new__(cls)
+
     def __getitem__(self, item) -> Particle | list[Particle]:
         match item:
             case int()|slice():
@@ -212,6 +225,9 @@ class Population:
             case Array():
                 return [self[i] for i in item]
 
+    def show(self):
+        """docstring"""
+        
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
 # >-|===|>                                   Functions                                    <|===|-<
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
@@ -275,6 +291,8 @@ def video_particle_over(
         vname, fig, update, len(background)-1,
         verbose=verbose, frames=f'~/.temp/{vname}'
     )
+
+
 def follow_particle_video(
         vname: str, part: Particle, background: ndarray,
         window=20,

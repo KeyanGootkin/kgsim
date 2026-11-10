@@ -8,7 +8,7 @@ from os import system
 from os.path import exists
 from h5py import File as h5File
 from numpy import mean, linspace, diff, exp, array, prod, inf, vstack, nanmin, nanmax, append, \
-    ndarray
+    ndarray, arange
 from numpy.random import choice
 
 from kgsim.fields import ScalarField, VectorField, Az, single_point_single_lag_structure_function
@@ -22,7 +22,7 @@ from kgsim.templates import dHybridRtemplate
 from kplot import show, func_video
 from kbasic.bar import verbose_bar
 from kbasic.strings import purple
-from kbasic.parsing import Folder, Path
+from kbasic.parsing import Folder, Path, File
 from kbasic.vectors import Vector
 
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
@@ -39,7 +39,33 @@ def create_dhybridr_data_file(data: ndarray, path: Path) -> h5File:
     """docstring"""
     with h5File(path, 'a') as file:
         file['DATA'] = data
+        file.create_group('AXIS')
+        for i,si in enumerate(data.shape):
+            file['AXIS'][f'X{i+1} AXIS'] = [0., si]
     return file
+
+def save_dhybridr_scalar_field(field: ScalarField, destination: Path|str):
+    """docstring"""
+    if isinstance(destination, str): destination = Folder(destination)
+    if not (hasattr(field, 'parent') and hasattr(field.parent, 'iter')):
+        its = range(len(field))
+    else:
+        its = field.parent.iter
+    system(f'mkdir -p {str(destination)}')
+    for f,it in zip(field, its):
+        fn = destination / f'{str(it).zfill(8)}_{field.name}.h5'
+        create_dhybridr_data_file(f, fn)
+
+def save_dhybridr_vector_field(field: VectorField, destination: Path):
+    """docstring"""
+    save_dhybridr_scalar_field(field.x, destination/'x')
+    save_dhybridr_scalar_field(field.y, destination/'y')
+    save_dhybridr_scalar_field(field.z, destination/'z')
+
+def dhybridr_field_writer(field, destination):
+    match field:
+        case ScalarField(): save_dhybridr_scalar_field(field, destination)
+        case VectorField(): save_dhybridr_vector_field(field, destination)
 
 # simulation parsing
 def extract_energy(file_name: str) -> tuple:
@@ -178,11 +204,11 @@ class dHybridRparticle(Particle):
         u = abs(self.parent.u)
         xcells = (self.x // self.parent.dx).astype(int)
         ycells = (self.y // self.parent.dy).astype(int)
-        bis = [i for _ in range(self.species.pipsi) for i in range(len(self.parent))]
+        pis = arange(len(self.parent)-1) * self.species.pipsi
         return array([
             single_point_single_lag_structure_function(
                 xcells[i], ycells[i], 1, u[bi], l
-                ) for i,bi in verbose_bar(zip(range(len(self.parent)), bis), self.parent.verbose)
+                ) for i,bi in verbose_bar(zip(pis, range(len(self.parent))), self.parent.verbose)
             ])
 
 
@@ -202,7 +228,7 @@ class dHybridRspecies(Species):
         self.pipsi = int(parent.input.ndump / parent.input.sp01.track_nstore)
         self.loaded = False
         if self.input.track_dump:
-            self.path = parent.path+f"/Output/Tracks/Sp{self.nstr}/track_Sp{self.nstr}.h5"
+            self.path = parent.output / f"Tracks/Sp{self.nstr}/track_Sp{self.nstr}.h5"
             self.load()
 
     def __repr__(self) -> str: return self.name
@@ -358,11 +384,22 @@ class dHybridR(GenericSimulation):
             'parent':self, 
             'stats':Folder(f"{self.path}/stats")
         }
-
+        if exists(p:=self.path + "/Output/Postfacto/"):
+            for field in Folder(p).children:
+                match field.children[0]:
+                    case File():
+                        # its a scalar field
+                        sf = ScalarField(field.path, name=field.name, latex='post', **kwargs)
+                        setattr(self, field.name, sf)
+                    case Folder():
+                        # its a vector field
+                        vf = VectorField(field.path, name=field.name, latex='post', **kwargs)
+                        setattr(self, field.name, vf)
         if exists(p:=self.path + "/Output/Fields/Magnetic/Total/"):
             self.B = VectorField(
                 p, name="magnetic", latex="B", **kwargs
             )
+            self.B.writer = dhybridr_field_writer
             if self.debug:
                 self.log.debug(f"Δt - read B: {time()-self.start:.1E} s")
                 self.start = time()
@@ -370,6 +407,7 @@ class dHybridR(GenericSimulation):
             self.E = VectorField(
                 p, name="electric", latex="E", **kwargs
             )
+            self.E.writer = dhybridr_field_writer
             if self.debug:
                 self.log.debug(f"Δt - read E: {time()-self.start:.1E} s")
                 self.start = time()
@@ -377,6 +415,7 @@ class dHybridR(GenericSimulation):
             self.J = VectorField(
                 p, name="electric", latex="E", **kwargs
             )
+            self.J.writer = dhybridr_field_writer
             if self.debug:
                 self.log.debug(f"Δt - read E: {time()-self.start:.1E} s")
                 self.start = time()
@@ -440,6 +479,7 @@ class dHybridR(GenericSimulation):
             self.u = VectorField(
                 p, name="bulkflow", latex="u", **kwargs
             )
+            self.u.writer = dhybridr_field_writer
             if self.debug:
                 self.log.debug(f"Δt - read u: {time()-self.start:.1E} s")
                 self.start = time()
@@ -450,6 +490,12 @@ class dHybridR(GenericSimulation):
             self.start = time()
         self.iter = array(iters(self))
         self.time = array(times(self))
+
+    def save_field(self, field: ScalarField | VectorField) -> None:
+        """docstring"""
+        destination = self.output / f"Postfacto/{field.name}"
+        system(f"mkdir -p {destination}")
+        dhybridr_field_writer(field, destination)
 
     def magnetic_potential_extrema(self):
         """docstring"""

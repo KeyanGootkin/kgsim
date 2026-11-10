@@ -3,7 +3,6 @@
 # >-|===|>                                    Imports                                     <|===|-<
 # !==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==!==
 from typing import Optional, Self, Callable
-from glob import glob
 from functools import cached_property
 from os.path import isdir, isfile
 import logging
@@ -80,38 +79,43 @@ class ScalarField:
         #find the correct constructor
         match source:
             #if its a folder
-            case Folder() | str() if isdir(source):
+            case Folder() | str():
+                if not isdir(source):
+                    raise TypeError(f"There is no directory at '{source}'")
                 self.path = Folder(source)
-                self.single = False
                 example_file: File = self.path.children[0]
                 if example_file.extension==".h5": self._from_folder_of_h5(self.path)
             #otherwise its a file
             case File() | str() if isfile(source):
                 self.path = File(source)
-                self.single = True
                 if self.path.extension=="h5": self._from_h5(self.path)
                 else: self._from_csv(self.path)
             #or if its already been read
             case Array():
-                self.single = True
                 self._from_numpy(array(source))
             case _: raise TypeError(f"{source} of wrong type: {type(source)}")
         # read the stats file
         if parent: self.stats = Folder(f"{self.parent.path}/stats")
         if self.stats: self._read_stats()
-    def __len__(self) -> int: return 1 if self.single else len(self.file_names)
+
+    def __len__(self) -> int:
+        if hasattr(self, 'array'):
+            return 1 if len(self.array.shape)==2 else len(self.array)
+        return len(self.file_names)
+
     def __iter__(self) -> Self:
-        assert not self.single, "Cannot iterate through single scalar field"
         self.index = 0
         return self
+
     def __next__(self) -> NDArray:
         if self.index < len(self):
             i = self.index
             self.index += 1
             return self[i]
         else: raise StopIteration
+
     def __getitem__(self, item: int|slice|ArrayLike) -> NDArray:
-        if self.single: return self.array[item]
+        if hasattr(self, 'array'): return self.array[item]
         match item:
             case int():
                 return self.cache[item] if self.caching and item in self.cache \
@@ -132,32 +136,35 @@ class ScalarField:
                 self.cache[i] if self.caching and i in self.cache \
                 else self.reader(self.file_names[i], i) for i in item
             ])
+
     def _from_folder_of_h5(self, path: Folder) -> None:
         self.file_names: list = sorted(self.path.glob("*.h5"))
         self.reader: Callable = self._read_h5_file
         self.shape = self[0].shape
         self.ndims = len(self.shape)
         self.size = prod(self.shape) * len(self)
+
     def _from_h5(self, file:str) -> None:
         self.file = file.path if isinstance(file, File) else file
         self.array = self._read_h5_file(file, 0)
         self.shape = self.array.shape
         self.ndims = len(self.shape)
         self.size = prod(self.shape) * len(self)
+
     def _read_h5_file(self, file:str, item) -> NDArray:
         with h5File(file, 'r') as f:
             output = array(f["DATA"][:])
             #GODDMANIT I HATE THAT IT DOES Y,X and not X,Y
             if self.caching: self.cache[item] = output
             return output
-    def _from_csv(self, source) -> None:
-        ...
+
     def _read_csv_file(self, file:str) -> None: pass
+
     def _from_numpy(self, arr:ndarray) -> None:
-        self.single = True
         self.array = arr
         self.shape = arr.shape
         self.ndims = len(self.shape)
+
     def _read_stats(self) -> None:
         ensure_path(self.stats.path)
         self.statsFile = File(f"{self.stats.path}/{self.name}.csv")
@@ -187,6 +194,7 @@ class ScalarField:
             self.min = nanmin(data[0])
             self.max = nanmax(data[1])
             savetxt(self.statsFile.path, data, delimiter=',', header="min,max,median,mean,std")
+
     @cached_property #cached property only is used if self.min not set by stats file
     def min(self) -> Number:
         """docstring"""
@@ -195,6 +203,7 @@ class ScalarField:
             y = append(frame, x)
             x = nanmin(y)
         return x
+
     @cached_property #cached property only is used if self.max not set by stats file
     def max(self) -> Number:
         """docstring"""
@@ -203,10 +212,12 @@ class ScalarField:
             y = append(frame, x)
             x = nanmax(y)
         return x
+
     @cached_property
     def extrema(self) -> tuple[Number]:
         """docstring"""
         return self.min, self.max
+
     def show(self, item:int, **kwargs) -> None:
         """docstring"""
         if hasattr(self.parent, 'dx'):
@@ -214,6 +225,7 @@ class ScalarField:
             y_ticks = arange(0, self.parent.input.boxsize[1], self.parent.dy)
             return show(self[item], x=x_ticks, y=y_ticks, **kwargs)
         assert False
+
     def movie(self, file_name=None, norm='none', cmap=default_cmap, func=None,**kwds) -> None:
         """docstring"""
         show_video(
