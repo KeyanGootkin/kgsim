@@ -54,7 +54,7 @@ class VectorField:
             parallel: Optional[str] = 'z'
         ) -> None:
         latex = "".join([c for c in latex if c not in r"$\{}"]) if not latex is None else ''
-        self.stats = Folder(stats)
+        self.stats = Folder(stats) if stats else None
         self.name = name
         self.latex = latex
         self.parent = parent
@@ -131,7 +131,7 @@ class VectorField:
                 self.path = Folder(path)
                 self.components = tuple(
                     ScalarField(
-                        c.path,
+                        c,
                         name=self.name+f"_{c.name}", latex=f"${self.latex}_{c.name}$",
                         **child_kwargs
                     ) for c in self.path.children if c.name in 'xyz'

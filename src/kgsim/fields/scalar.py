@@ -223,8 +223,10 @@ class ScalarField:
         if hasattr(self.parent, 'dx'):
             x_ticks = arange(0, self.parent.input.boxsize[0], self.parent.dx)
             y_ticks = arange(0, self.parent.input.boxsize[1], self.parent.dy)
-            return show(self[item], x=x_ticks, y=y_ticks, **kwargs)
-        assert False
+        else:
+            x_ticks = None
+            y_ticks = None
+        return show(self[item], x=x_ticks, y=y_ticks, shading='nearest', **kwargs)
 
     def movie(self, file_name=None, norm='none', cmap=default_cmap, func=None,**kwds) -> None:
         """docstring"""
